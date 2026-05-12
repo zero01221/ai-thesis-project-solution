@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+
+export async function POST(request: NextRequest) {
+  try {
+    const { title, requirements, readme } = await request.json();
+
+    if (!title || !requirements || !Array.isArray(requirements) || requirements.length === 0) {
+      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    }
+
+    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
+    const config = new Config();
+    const client = new LLMClient(config, customHeaders);
+
+    const requirementsText = requirements
+      .map((r: { name: string; description: string }, i: number) => `${i + 1}. ${r.name}: ${r.description}`)
+      .join('\n');
+
+    const readmeSummary = readme
+      ? `\n\n## 以下是项目README文档的摘要信息（供参考技术栈和系统架构）：\n${(readme as string).slice(0, 3000)}`
+      : '';
+
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `你是一位资深的计算机专业毕业设计指导老师，擅长撰写高质量的毕业设计说明书（论文）。
+
+你需要撰写一篇完整的毕业设计说明书初稿，字数要求在18000-20000字之间。
+
+输出要求：
+1. 直接输出Markdown格式的完整文档，不要包含任何额外说明
+2. 每个章节必须非常详细和充实，确保总字数达到18000-20000字
+3. 文档结构完整，逻辑严密，语言学术规范
+4. 适当使用表格、列表等格式增强可读性
+5. 技术描述要具体，避免空泛的概述`,
+      },
+      {
+        role: 'user' as const,
+        content: `请根据以下毕业设计项目信息，撰写一篇18000-20000字的设计说明书初稿。
+
+## 论文题目
+${title}
+
+## 功能需求
+${requirementsText}
+${readmeSummary}
+
+## 设计说明书必须包含以下章节，每个章节的字数要求如下：
+
+### 第1章 绪论（约2500字）
+- 1.1 研究背景（阐述选题的现实意义和学术价值，结合行业现状分析）
+- 1.2 国内外研究现状（综述相关领域的研究进展，至少分3-4个方向讨论）
+- 1.3 研究目的与意义（明确本文的研究目标和实际应用价值）
+- 1.4 论文组织结构（概述各章节内容安排）
+
+### 第2章 相关技术介绍（约2500字）
+- 2.1 前端技术栈（详细介绍框架原理、核心特性、选型理由）
+- 2.2 后端技术栈（详细介绍框架原理、核心特性、选型理由）
+- 2.3 数据库技术（介绍数据库类型、特点、适用场景）
+- 2.4 开发工具与环境（介绍开发环境配置、构建工具、版本控制等）
+- 2.5 其他关键技术（如中间件、缓存、部署方案等）
+
+### 第3章 系统需求分析（约2500字）
+- 3.1 可行性分析（技术可行性、经济可行性、操作可行性）
+- 3.2 功能需求分析（详细描述每个功能模块的需求，使用用例图描述）
+- 3.3 非功能需求分析（性能需求、安全需求、可用性需求等）
+- 3.4 用例分析（核心用例的详细描述，包含前置条件、主流程、异常流程）
+
+### 第4章 系统总体设计（约2500字）
+- 4.1 系统架构设计（整体架构说明，分层架构描述，各层职责）
+- 4.2 系统功能模块设计（模块划分、模块间关系、功能模块图）
+- 4.3 系统流程设计（核心业务流程描述，流程图说明）
+- 4.4 接口设计（系统对外接口、内部模块间接口的设计规范）
+
+### 第5章 数据库设计（约2500字）
+- 5.1 数据库概念设计（E-R图描述，实体及关系说明）
+- 5.2 数据库逻辑设计（关系模式转换，表结构设计）
+- 5.3 数据表详细设计（每张表的字段名、类型、约束、说明，用表格展示）
+- 5.4 数据库优化设计（索引设计、查询优化策略）
+
+### 第6章 系统详细设计与实现（约3000字）
+- 6.1 用户管理模块实现（页面设计、交互逻辑、关键代码实现说明）
+- 6.2 核心业务模块实现（按功能模块逐个描述界面设计和实现逻辑）
+- 6.3 数据访问层实现（DAO层设计、数据操作封装）
+- 6.4 前端页面实现（组件设计、路由设计、状态管理）
+- 6.5 安全机制实现（认证授权、数据校验、防护措施）
+
+### 第7章 系统测试（约2000字）
+- 7.1 测试环境（硬件环境、软件环境、浏览器兼容性）
+- 7.2 测试方案（测试策略、测试方法、测试用例设计）
+- 7.3 功能测试（核心功能测试用例及测试结果，用表格展示）
+- 7.4 性能测试（响应时间、并发能力、资源占用等测试数据）
+- 7.5 测试结论（测试结果总结，存在的问题及改进方向）
+
+### 第8章 总结与展望（约500字）
+- 8.1 工作总结
+- 8.2 不足与展望
+
+### 参考文献
+（列出15-20篇参考文献，格式规范）
+
+### 致谢
+
+请务必确保全文总字数在18000-20000字之间，每个章节都要详细充实，不能敷衍了事。`,
+      },
+    ];
+
+    const stream = client.stream(messages, {
+      model: 'doubao-seed-2-0-pro-260215',
+      temperature: 0.5,
+    });
+
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        try {
+          for await (const chunk of stream) {
+            if (chunk.content) {
+              const text = chunk.content.toString();
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    });
+
+    return new Response(readableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+  } catch (error) {
+    console.error('Generate design doc error:', error);
+    return NextResponse.json({ error: '设计说明书生成失败，请重试' }, { status: 500 });
+  }
+}

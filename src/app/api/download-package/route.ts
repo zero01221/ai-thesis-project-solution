@@ -3,9 +3,11 @@ import JSZip from 'jszip';
 
 export async function POST(request: NextRequest) {
   try {
-    const { files, title } = (await request.json()) as {
+    const { files, title, designDoc, readme } = (await request.json()) as {
       files?: Array<{ path: string; content: string }>;
       title?: string;
+      designDoc?: string;
+      readme?: string;
     };
 
     if (!files || !Array.isArray(files) || files.length === 0) {
@@ -23,7 +25,12 @@ export async function POST(request: NextRequest) {
       zip.file(`${projectName}/${file.path}`, file.content);
     }
 
-    // Also add a CLAUDE.md file for Claude Code permissions
+    // Add README.md
+    if (readme) {
+      zip.file(`${projectName}/README.md`, readme);
+    }
+
+    // Add CLAUDE.md for Claude Code permissions
     const claudeMd = `# ${title || 'Graduation Project'}
 
 ## Claude Code 权限配置
@@ -52,6 +59,86 @@ pnpm build
 \`\`\`
 `;
     zip.file(`${projectName}/CLAUDE.md`, claudeMd);
+
+    // Add 设计说明书
+    if (designDoc) {
+      zip.file(`${projectName}/设计说明书.md`, designDoc);
+    }
+
+    // Generate file tree text for "先看我.txt"
+    const fileTree: Record<string, string[]> = {};
+    files.forEach((file) => {
+      const parts = file.path.split('/');
+      const dir = parts.length > 1 ? parts.slice(0, -1).join('/') : '.';
+      if (!fileTree[dir]) fileTree[dir] = [];
+      fileTree[dir].push(parts[parts.length - 1]);
+    });
+
+    let treeText = '';
+    Object.entries(fileTree).forEach(([dir, dirFiles]) => {
+      treeText += `${dir}/\n`;
+      dirFiles.forEach((f) => {
+        treeText += `  - ${f}\n`;
+      });
+    });
+
+    const readmeMdContent = readme || '（未生成）';
+    const designDocContent = designDoc || '（未生成）';
+
+    const readMeTxt = `====================================
+  ${title || 'Graduation Project'} - 项目说明
+====================================
+
+亲爱的用户，你好！
+
+本压缩包由「毕业设计 AI 助手」自动生成，包含以下内容：
+
+【项目结构】
+${treeText}
+【文件说明】
+
+1. README.md
+   项目的完整技术文档，包含技术栈、功能模块、数据库设计、API接口等详细说明。
+   AI编程助手（如 Claude Code）可根据此文档完成项目的全部代码开发。
+
+2. CLAUDE.md
+   Claude Code 权限配置文件，授予 AI 读写文件、执行命令等必要权限。
+   使用 Claude Code 打开项目目录时会自动读取此文件。
+
+3. 设计说明书.md
+   毕业设计论文的设计说明书初稿，约1.8万-2万字。
+   包含项目概述、需求分析、系统设计、数据库设计、详细设计、系统测试等完整章节。
+   可作为毕业论文的参考基础，请根据实际情况修改完善。
+
+4. src/ 等代码目录
+   AI 根据 README.md 文档自动生成的项目源代码，可直接运行。
+
+【使用方式】
+
+方式一：使用 Claude Code 开发
+  1. 解压项目目录
+  2. 在终端中进入项目目录
+  3. 运行 claude 命令启动 Claude Code
+  4. AI 会自动读取 CLAUDE.md 和 README.md，获得完整的项目上下文
+  5. 向 AI 下达开发指令即可
+
+方式二：手动开发
+  1. 解压项目目录
+  2. 运行 pnpm install 安装依赖
+  3. 运行 pnpm dev 启动开发服务器
+  4. 参考 README.md 中的功能说明进行开发
+
+【README.md 摘要】
+${readmeMdContent.slice(0, 500)}${readmeMdContent.length > 500 ? '\n...（完整内容请查看 README.md）' : ''}
+
+【设计说明书.md 摘要】
+${designDocContent.slice(0, 500)}${designDocContent.length > 500 ? '\n...（完整内容请查看 设计说明书.md）' : ''}
+
+====================================
+
+设计说明书仅供参考
+`;
+    zip.file(`${projectName}/先看我.txt`, readMeTxt);
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 

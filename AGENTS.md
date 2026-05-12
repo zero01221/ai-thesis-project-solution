@@ -2,9 +2,9 @@
 
 ## 项目概述
 
-毕业设计 AI 助手是一个基于 Next.js 的全栈 Web 应用，帮助用户从毕业论文题目出发，通过 AI 自动生成需求、README 文档和完整项目代码，并打包下载。
+毕业设计 AI 助手是一个基于 Next.js 的全栈 Web 应用，帮助用户从毕业论文题目出发，通过 AI 自动生成需求、README 文档、设计说明书和完整项目代码，并打包下载。
 
-核心流程：论文题目/需求输入 → 需求确认编辑 → README 文档生成 → 代码生成与下载
+核心流程：论文题目/需求输入 → 需求确认编辑 → README 文档生成 → 设计说明书生成 → 代码生成与下载
 
 ### 版本技术栈
 
@@ -31,10 +31,11 @@
 │   │       ├── generate-requirements/  # [POST] 根据论文题目生成需求
 │   │       ├── analyze-requirements/   # [POST] 分析手动输入的需求
 │   │       ├── generate-readme/        # [POST] 生成 README.md
+│   │       ├── generate-design-doc/    # [POST] 生成设计说明书（1.8-2万字）
 │   │       ├── generate-code/          # [POST] 生成项目代码
 │   │       └── download-package/       # [POST] 打包为 ZIP 下载
 │   ├── components/
-│   │   ├── graduation-wizard.tsx  # 核心：4步向导组件（客户端）
+│   │   ├── graduation-wizard.tsx  # 核心：5步向导组件（客户端）
 │   │   └── ui/                    # shadcn/ui 组件库
 │   ├── hooks/
 │   ├── lib/
@@ -49,12 +50,13 @@
 
 ### graduation-wizard.tsx
 
-4 步向导式交互组件，管理全部状态和 AI 调用：
+5 步向导式交互组件，管理全部状态和 AI 调用：
 
 - **Step 1 - 需求输入**: 两种模式（智能生成/手动输入），调用 LLM 流式输出
 - **Step 2 - 需求确认**: 可编辑/删除/新增需求的列表
 - **Step 3 - 生成README**: 调用 LLM 生成 Markdown 文档，实时渲染预览
-- **Step 4 - 代码生成**: 调用 LLM 生成多文件代码，文件树预览 + ZIP 下载
+- **Step 4 - 设计说明书**: 调用 LLM 生成 1.8-2 万字设计说明书初稿，实时渲染预览
+- **Step 5 - 代码生成**: 调用 LLM 生成多文件代码，文件树预览 + ZIP 下载
 
 ### API 路由
 
@@ -65,8 +67,18 @@
 | `/api/generate-requirements` | POST | 根据论文题目生成需求 JSON | `{ title }` |
 | `/api/analyze-requirements` | POST | 分析手动需求返回结构化 JSON | `{ requirements }` |
 | `/api/generate-readme` | POST | 生成 README.md Markdown | `{ title, requirements[] }` |
+| `/api/generate-design-doc` | POST | 生成 1.8-2 万字设计说明书 | `{ title, requirements[], readme? }` |
 | `/api/generate-code` | POST | 生成代码文件 JSON 数组 | `{ readme, title }` |
-| `/api/download-package` | POST | 返回 ZIP 文件 | `{ files[], title }` |
+| `/api/download-package` | POST | 返回 ZIP 文件 | `{ files[], title, designDoc?, readme? }` |
+
+### ZIP 打包内容
+
+下载的 ZIP 包含以下文件：
+- 项目源代码（AI 生成的所有文件）
+- `README.md` - 项目技术文档
+- `设计说明书.md` - 毕业设计说明书初稿
+- `CLAUDE.md` - Claude Code 权限配置文件
+- `先看我.txt` - 项目说明文件（含结构、用途，尾端标注"设计说明书仅供参考"）
 
 ## 包管理规范
 

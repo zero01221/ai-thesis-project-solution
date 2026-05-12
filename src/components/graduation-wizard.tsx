@@ -28,6 +28,7 @@ import {
   Zap,
   BrainCircuit,
   FolderTree,
+  BookOpen,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -43,13 +44,14 @@ interface CodeFile {
   content: string;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const STEPS = [
   { number: 1, label: '需求输入', icon: BrainCircuit },
   { number: 2, label: '需求确认', icon: CheckCircle2 },
   { number: 3, label: '生成README', icon: FileText },
-  { number: 4, label: '代码生成', icon: Code2 },
+  { number: 4, label: '设计说明书', icon: BookOpen },
+  { number: 5, label: '代码生成', icon: Code2 },
 ];
 
 // Streaming fetch helper
@@ -89,7 +91,6 @@ async function streamFetch(
 // Parse JSON from AI response (handles markdown code blocks)
 function parseRequirements(text: string): Requirement[] {
   let cleaned = text.trim();
-  // Remove markdown code block markers
   cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
@@ -103,7 +104,6 @@ function parseRequirements(text: string): Requirement[] {
       }));
     }
   } catch {
-    // Try to find JSON array in the text
     const match = cleaned.match(/\[[\s\S]*\]/);
     if (match) {
       try {
@@ -169,6 +169,7 @@ export default function GraduationWizard() {
   const [manualRequirements, setManualRequirements] = useState('');
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [readmeContent, setReadmeContent] = useState('');
+  const [designDocContent, setDesignDocContent] = useState('');
   const [codeFiles, setCodeFiles] = useState<CodeFile[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamText, setStreamText] = useState('');
@@ -176,7 +177,9 @@ export default function GraduationWizard() {
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedDesign, setCopiedDesign] = useState(false);
   const readmeScrollRef = useRef<HTMLDivElement>(null);
+  const designDocScrollRef = useRef<HTMLDivElement>(null);
 
   // Step 1: Generate or analyze requirements
   const handleGenerateRequirements = useCallback(async () => {
@@ -227,7 +230,6 @@ export default function GraduationWizard() {
         { title: title.trim() || '毕业设计项目', requirements },
         (text) => {
           setStreamText(text);
-          // Auto scroll
           setTimeout(() => {
             readmeScrollRef.current?.scrollTo({
               top: readmeScrollRef.current.scrollHeight,
@@ -247,7 +249,43 @@ export default function GraduationWizard() {
     }
   }, [requirements, title]);
 
-  // Step 4: Generate code
+  // Step 4: Generate Design Doc
+  const handleGenerateDesignDoc = useCallback(async () => {
+    if (requirements.length === 0) return;
+
+    setIsGenerating(true);
+    setStreamText('');
+
+    try {
+      const fullText = await streamFetch(
+        '/api/generate-design-doc',
+        {
+          title: title.trim() || '毕业设计项目',
+          requirements,
+          readme: readmeContent,
+        },
+        (text) => {
+          setStreamText(text);
+          setTimeout(() => {
+            designDocScrollRef.current?.scrollTo({
+              top: designDocScrollRef.current.scrollHeight,
+              behavior: 'smooth',
+            });
+          }, 100);
+        },
+      );
+
+      setDesignDocContent(fullText);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '设计说明书生成失败';
+      alert(message);
+    } finally {
+      setIsGenerating(false);
+      setStreamText('');
+    }
+  }, [requirements, title, readmeContent]);
+
+  // Step 5: Generate code
   const handleGenerateCode = useCallback(async () => {
     if (!readmeContent.trim()) return;
 
@@ -290,6 +328,8 @@ export default function GraduationWizard() {
         body: JSON.stringify({
           files: codeFiles,
           title: title.trim() || 'graduation-project',
+          designDoc: designDocContent,
+          readme: readmeContent,
         }),
       });
 
@@ -310,7 +350,7 @@ export default function GraduationWizard() {
       const message = err instanceof Error ? err.message : '下载失败';
       alert(message);
     }
-  }, [codeFiles, title]);
+  }, [codeFiles, title, designDocContent, readmeContent]);
 
   // Requirement editing
   const startEditing = (req: Requirement) => {
@@ -343,6 +383,13 @@ export default function GraduationWizard() {
     await navigator.clipboard.writeText(readmeContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Copy Design Doc
+  const copyDesignDoc = async () => {
+    await navigator.clipboard.writeText(designDocContent);
+    setCopiedDesign(true);
+    setTimeout(() => setCopiedDesign(false), 2000);
   };
 
   // Get file tree from code files
@@ -431,32 +478,28 @@ export default function GraduationWizard() {
           </div>
         </div>
 
-        {/* Step 1: Input */}
+        {/* Step 1: Requirements Input */}
         {step === 1 && (
           <Card className="border-0 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <BrainCircuit className="h-5 w-5 text-violet-600" />
-                项目需求输入
+                需求输入
               </CardTitle>
               <CardDescription>
-                输入毕业论文题目自动生成需求，或手动输入已有需求
+                输入论文题目自动生成需求，或手动描述你的需求
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs
-                value={inputMode}
-                onValueChange={(v) => setInputMode(v as 'auto' | 'manual')}
-                className="w-full"
-              >
-                <TabsList className="mb-6 grid w-full grid-cols-2">
+              <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'auto' | 'manual')} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="auto" className="gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    智能生成需求
+                    <Sparkles className="h-3.5 w-3.5" />
+                    智能生成
                   </TabsTrigger>
                   <TabsTrigger value="manual" className="gap-2">
-                    <Edit3 className="h-4 w-4" />
-                    手动输入需求
+                    <Edit3 className="h-3.5 w-3.5" />
+                    手动输入
                   </TabsTrigger>
                 </TabsList>
 
@@ -469,13 +512,10 @@ export default function GraduationWizard() {
                       placeholder="例如：基于Spring Boot的在线考试系统设计与实现"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="h-12 bg-white text-base dark:bg-slate-800"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !isGenerating) handleGenerateRequirements();
-                      }}
+                      className="bg-white text-base dark:bg-slate-800"
                     />
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      输入完整的论文题目，AI将自动分析并生成详细的项目功能需求
+                      AI 将根据论文题目自动分析并生成详细的功能需求
                     </p>
                   </div>
                 </TabsContent>
@@ -728,7 +768,7 @@ export default function GraduationWizard() {
                   disabled={!readmeContent}
                   className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 px-8 shadow-lg shadow-blue-500/25 hover:from-blue-700 hover:to-cyan-700"
                 >
-                  确认README，生成代码
+                  确认README，生成设计说明书
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -736,8 +776,91 @@ export default function GraduationWizard() {
           </Card>
         )}
 
-        {/* Step 4: Code Generation & Download */}
+        {/* Step 4: Design Doc Generation */}
         {step === 4 && (
+          <Card className="border-0 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <BookOpen className="h-5 w-5 text-amber-600" />
+                    设计说明书生成
+                  </CardTitle>
+                  <CardDescription>
+                    基于需求和系统设计，AI 自动撰写 1.8-2 万字的设计说明书初稿，可作为毕业论文参考
+                  </CardDescription>
+                </div>
+                {designDocContent && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={copyDesignDoc}
+                  >
+                    {copiedDesign ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedDesign ? '已复制' : '复制说明书'}
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!designDocContent && !isGenerating && (
+                <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-16 dark:border-slate-700">
+                  <BookOpen className="mb-4 h-12 w-12 text-slate-300 dark:text-slate-600" />
+                  <p className="mb-2 text-sm text-slate-500">
+                    点击下方按钮，AI将撰写完整的设计说明书初稿
+                  </p>
+                  <p className="mb-4 text-xs text-slate-400">
+                    包含绪论、技术介绍、需求分析、系统设计、数据库设计、详细实现、测试等完整章节
+                  </p>
+                  <Button
+                    onClick={handleGenerateDesignDoc}
+                    className="gap-2 bg-gradient-to-r from-amber-600 to-orange-600 px-8 shadow-lg shadow-amber-500/25 hover:from-amber-700 hover:to-orange-700"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    生成设计说明书
+                  </Button>
+                </div>
+              )}
+
+              {isGenerating && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  AI 正在撰写设计说明书（约1.8-2万字），请耐心等待...
+                </div>
+              )}
+
+              {(designDocContent || isGenerating) && (
+                <div ref={designDocScrollRef} className="max-h-[600px] overflow-auto rounded-xl border bg-white p-6 dark:bg-slate-800/50">
+                  <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:font-semibold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg prose-a:text-violet-600 prose-code:text-violet-600">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {designDocContent || streamText || '正在生成...'}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              <Separator className="my-6" />
+
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={() => setStep(3)} className="gap-2">
+                  <ChevronLeft className="h-4 w-4" />
+                  返回修改README
+                </Button>
+                <Button
+                  onClick={() => setStep(5)}
+                  className="gap-2 bg-gradient-to-r from-amber-600 to-orange-600 px-8 shadow-lg shadow-amber-500/25 hover:from-amber-700 hover:to-orange-700"
+                >
+                  确认说明书，生成代码
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 5: Code Generation & Download */}
+        {step === 5 && (
           <div className="grid gap-6 lg:grid-cols-5">
             {/* Left: File tree + Generate */}
             <div className="lg:col-span-2">
@@ -824,7 +947,7 @@ export default function GraduationWizard() {
                       </Button>
 
                       <p className="text-center text-xs text-slate-400">
-                        压缩包包含 CLAUDE.md 权限配置文件，可直接用 Claude Code 打开开发
+                        压缩包包含 CLAUDE.md 权限配置、设计说明书和「先看我.txt」说明文件
                       </p>
                     </div>
                   )}
@@ -874,9 +997,9 @@ export default function GraduationWizard() {
             {/* Bottom navigation */}
             <div className="lg:col-span-5">
               <div className="flex justify-start">
-                <Button variant="outline" onClick={() => setStep(3)} className="gap-2">
+                <Button variant="outline" onClick={() => setStep(4)} className="gap-2">
                   <ChevronLeft className="h-4 w-4" />
-                  返回修改README
+                  返回设计说明书
                 </Button>
               </div>
             </div>
