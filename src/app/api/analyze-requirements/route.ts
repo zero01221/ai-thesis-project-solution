@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
+import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,9 +9,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '请输入需求内容' }, { status: 400 });
     }
 
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
+    const client = createOpenAIClient();
 
     const messages = [
       {
@@ -47,35 +45,7 @@ ${requirements.trim()}
       },
     ];
 
-    const stream = client.stream(messages, {
-      model: 'doubao-seed-2-0-pro-260215',
-      temperature: 0.7,
-    });
-
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        try {
-          for await (const chunk of stream) {
-            if (chunk.content) {
-              const text = chunk.content.toString();
-              controller.enqueue(encoder.encode(text));
-            }
-          }
-          controller.close();
-        } catch (error) {
-          controller.error(error);
-        }
-      },
-    });
-
-    return new Response(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    return createStreamResponse(client, messages, 'analyzeRequirements');
   } catch (error) {
     console.error('Analyze requirements error:', error);
     return NextResponse.json({ error: '需求分析失败，请重试' }, { status: 500 });

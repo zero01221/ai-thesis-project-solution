@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -481,62 +480,81 @@ export default function GraduationWizard() {
         {/* Step 1: Requirements Input */}
         {step === 1 && (
           <Card className="border-0 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <BrainCircuit className="h-5 w-5 text-violet-600" />
-                需求输入
-              </CardTitle>
-              <CardDescription>
-                输入论文题目自动生成需求，或手动描述你的需求
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={inputMode} onValueChange={(v) => setInputMode(v as 'auto' | 'manual')} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="auto" className="gap-2">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    智能生成
-                  </TabsTrigger>
-                  <TabsTrigger value="manual" className="gap-2">
-                    <Edit3 className="h-3.5 w-3.5" />
-                    手动输入
-                  </TabsTrigger>
-                </TabsList>
+            <CardContent className="pt-8">
+              {/* Mode toggle - small switch style */}
+              <div className="mb-6 flex items-center justify-center gap-3">
+                <span className={`text-sm font-medium transition-colors ${inputMode === 'auto' ? 'text-violet-600' : 'text-slate-400'}`}>
+                  <Sparkles className="mr-1 inline h-3.5 w-3.5" />
+                  智能生成
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={inputMode === 'manual'}
+                  onClick={() => setInputMode(inputMode === 'auto' ? 'manual' : 'auto')}
+                  className="relative h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                  style={{ backgroundColor: inputMode === 'auto' ? '#7c3aed' : '#f59e0b' }}
+                >
+                  <span
+                    className="pointer-events-none inline-block h-5.5 w-5.5 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out"
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      transform: inputMode === 'manual' ? 'translateX(26px)' : 'translateX(1px)',
+                      marginTop: '1px',
+                    }}
+                  />
+                </button>
+                <span className={`text-sm font-medium transition-colors ${inputMode === 'manual' ? 'text-amber-600' : 'text-slate-400'}`}>
+                  手动输入
+                  <Edit3 className="ml-1 inline h-3.5 w-3.5" />
+                </span>
+              </div>
 
-                <TabsContent value="auto" className="space-y-4">
-                  <div className="rounded-xl bg-gradient-to-br from-violet-50 to-indigo-50 p-6 dark:from-violet-950/30 dark:to-indigo-950/30">
-                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      毕业论文题目
+              {/* Large input area */}
+              <div className="min-h-[320px]">
+                {inputMode === 'auto' ? (
+                  <div className="flex h-full flex-col">
+                    <label className="mb-3 block text-base font-semibold text-slate-700 dark:text-slate-300">
+                      输入毕业论文题目
                     </label>
                     <Input
                       placeholder="例如：基于Spring Boot的在线考试系统设计与实现"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="bg-white text-base dark:bg-slate-800"
+                      className="h-14 bg-gradient-to-br from-violet-50/50 to-indigo-50/50 text-lg dark:from-violet-950/20 dark:to-indigo-950/20"
+                      autoFocus
                     />
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      AI 将根据论文题目自动分析并生成详细的功能需求
-                    </p>
+                    <div className="mt-4 flex-1 rounded-xl border-2 border-dashed border-slate-200 p-6 dark:border-slate-700">
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <BrainCircuit className="mb-3 h-12 w-12 text-violet-300 dark:text-violet-600" />
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          AI 将根据论文题目自动分析并生成 8-12 条详细的功能需求
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                          包括用户管理、数据交互、界面展示等完整功能需求
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </TabsContent>
-
-                <TabsContent value="manual" className="space-y-4">
-                  <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 p-6 dark:from-amber-950/30 dark:to-orange-950/30">
-                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                      项目需求描述
+                ) : (
+                  <div className="flex h-full flex-col">
+                    <label className="mb-3 block text-base font-semibold text-slate-700 dark:text-slate-300">
+                      描述你的项目需求
                     </label>
                     <Textarea
-                      placeholder="请描述你的毕业设计需求，例如：&#10;1. 需要一个在线考试系统&#10;2. 支持多种题型（选择、填空、简答）&#10;3. 教师可以创建和管理试卷&#10;4. 学生可以在线答题和查看成绩"
+                      placeholder={"请描述你的毕业设计需求，例如：\n1. 需要一个在线考试系统\n2. 支持多种题型（选择、填空、简答）\n3. 教师可以创建和管理试卷\n4. 学生可以在线答题和查看成绩\n5. 系统需要自动阅卷功能\n6. 支持考试数据统计分析"}
                       value={manualRequirements}
                       onChange={(e) => setManualRequirements(e.target.value)}
-                      className="min-h-[200px] bg-white text-base dark:bg-slate-800"
+                      className="min-h-[280px] flex-1 bg-gradient-to-br from-amber-50/50 to-orange-50/50 text-base dark:from-amber-950/20 dark:to-orange-950/20"
+                      autoFocus
                     />
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      描述越详细，AI分析结果越准确。支持条目式或段落式描述。
+                      描述越详细，AI 分析结果越准确。支持条目式或段落式描述，AI 会自动补充完善缺失的需求。
                     </p>
                   </div>
-                </TabsContent>
-              </Tabs>
+                )}
+              </div>
 
               {/* Streaming indicator */}
               {isGenerating && (

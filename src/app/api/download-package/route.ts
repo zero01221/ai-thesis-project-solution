@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     const zip = new JSZip();
 
-    // Add files to zip
+    // Add code files to zip
     for (const file of files) {
       zip.file(`${projectName}/${file.path}`, file.content);
     }
@@ -65,7 +65,141 @@ pnpm build
       zip.file(`${projectName}/设计说明书.md`, designDoc);
     }
 
-    // Generate file tree text for "先看我.txt"
+    // ---- 生成配套 package.json（供 运行.bat 使用）----
+    // 从AI生成的代码中提取package.json，如果没有则生成一个基础的
+    const existingPkg = files.find((f) => f.path === 'package.json');
+    let packageJsonContent = '';
+
+    if (existingPkg) {
+      // 用AI生成的package.json，但确保有scripts
+      try {
+        const pkg = JSON.parse(existingPkg.content);
+        if (!pkg.scripts) pkg.scripts = {};
+        if (!pkg.scripts.dev) pkg.scripts.dev = 'next dev';
+        if (!pkg.scripts.build) pkg.scripts.build = 'next build';
+        if (!pkg.scripts.start) pkg.scripts.start = 'next start';
+        packageJsonContent = JSON.stringify(pkg, null, 2);
+      } catch {
+        packageJsonContent = existingPkg.content;
+      }
+    } else {
+      packageJsonContent = JSON.stringify({
+        name: projectName.toLowerCase().replace(/_/g, '-'),
+        version: '1.0.0',
+        description: title || 'Graduation Project',
+        scripts: {
+          dev: 'next dev',
+          build: 'next build',
+          start: 'next start',
+        },
+        dependencies: {
+          next: '^14.2.0',
+          react: '^18.3.0',
+          'react-dom': '^18.3.0',
+        },
+      }, null, 2);
+      // 同时补到代码文件列表中
+      zip.file(`${projectName}/package.json`, packageJsonContent);
+    }
+
+    // ---- 生成 运行.bat ----
+    const batContent = `@echo off
+chcp 65001 >nul 2>&1
+title ${title || 'Graduation Project'} - 一键运行
+
+echo.
+echo ========================================
+echo   ${title || 'Graduation Project'}
+echo   一键配置环境并运行
+echo ========================================
+echo.
+
+:: 检查 Node.js
+where node >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [错误] 未检测到 Node.js，正在尝试安装...
+    echo.
+    echo 请前往 https://nodejs.org/ 下载并安装 Node.js 18+ 版本
+    echo 安装完成后重新运行此脚本
+    echo.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%i in ('node -v') do set NODE_VER=%%i
+echo [OK] Node.js 版本: %NODE_VER%
+
+:: 检查 pnpm
+where pnpm >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [提示] 未检测到 pnpm，正在安装...
+    npm install -g pnpm
+    if %errorlevel% neq 0 (
+        echo [错误] pnpm 安装失败，请手动执行: npm install -g pnpm
+        pause
+        exit /b 1
+    )
+)
+
+for /f "tokens=*" %%i in ('pnpm -v') do set PNPM_VER=%%i
+echo [OK] pnpm 版本: %PNPM_VER%
+
+echo.
+echo ----------------------------------------
+echo   步骤 1/3: 安装项目依赖
+echo ----------------------------------------
+echo.
+
+pnpm install
+if %errorlevel% neq 0 (
+    echo [错误] 依赖安装失败，请检查网络连接后重试
+    pause
+    exit /b 1
+)
+
+echo.
+echo [OK] 依赖安装完成！
+
+echo.
+echo ----------------------------------------
+echo   步骤 2/3: 构建项目
+echo ----------------------------------------
+echo.
+
+pnpm build
+if %errorlevel% neq 0 (
+    echo [警告] 构建失败，尝试直接启动开发模式...
+    echo.
+    echo ----------------------------------------
+    echo   启动开发模式
+    echo ----------------------------------------
+    echo.
+    pnpm dev
+    goto :end
+)
+
+echo.
+echo [OK] 项目构建完成！
+
+echo.
+echo ----------------------------------------
+echo   步骤 3/3: 启动服务
+echo ----------------------------------------
+echo.
+
+echo 正在启动服务...
+echo 启动后请在浏览器中访问: http://localhost:3000
+echo 按 Ctrl+C 可停止服务
+echo.
+
+pnpm start
+
+:end
+pause
+`;
+    zip.file(`${projectName}/运行.bat`, batContent);
+
+    // ---- 生成 先看我.txt ----
     const fileTree: Record<string, string[]> = {};
     files.forEach((file) => {
       const parts = file.path.split('/');
@@ -113,16 +247,27 @@ ${treeText}
 4. src/ 等代码目录
    AI 根据 README.md 文档自动生成的项目源代码，可直接运行。
 
+5. 运行.bat
+   Windows 一键运行脚本，双击即可自动配置环境并启动项目。
+   脚本会自动检测并安装 Node.js 和 pnpm（如未安装），
+   然后安装依赖、构建项目、启动服务。
+
 【使用方式】
 
-方式一：使用 Claude Code 开发
+方式一：一键运行（Windows 推荐）
+  1. 解压项目目录
+  2. 双击「运行.bat」文件
+  3. 等待自动配置环境、安装依赖、构建项目
+  4. 浏览器访问 http://localhost:3000
+
+方式二：使用 Claude Code 开发
   1. 解压项目目录
   2. 在终端中进入项目目录
   3. 运行 claude 命令启动 Claude Code
   4. AI 会自动读取 CLAUDE.md 和 README.md，获得完整的项目上下文
   5. 向 AI 下达开发指令即可
 
-方式二：手动开发
+方式三：手动开发
   1. 解压项目目录
   2. 运行 pnpm install 安装依赖
   3. 运行 pnpm dev 启动开发服务器

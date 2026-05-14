@@ -1,363 +1,308 @@
-# projects
+# 毕业设计 AI 助手
 
-这是一个基于 [Next.js 16](https://nextjs.org) + [shadcn/ui](https://ui.shadcn.com) 的全栈应用项目，由扣子编程 CLI 创建。
+> 从论文题目到完整项目代码，一站式 AI 驱动的毕业设计辅助工具
+
+## 功能介绍
+
+### 5 步向导式工作流
+
+| 步骤 | 功能 | 说明 |
+|:---:|:---:|:---|
+| 1 | **需求输入** | 智能生成：输入论文题目，AI 自动生成 8-12 条详细功能需求；手动输入：描述需求，AI 分析并结构化完善 |
+| 2 | **需求确认** | 可视化需求列表，支持编辑、删除、新增需求，审核后确认 |
+| 3 | **生成 README** | AI 根据需求生成完整详细的 README.md 技术文档，用于指导后续 AI 编程 |
+| 4 | **设计说明书** | AI 撰写 1.8-2 万字设计说明书初稿（8 章完整结构），可作为毕业论文参考 |
+| 5 | **代码生成与下载** | AI 根据 README 生成完整可运行的项目代码，一键打包 ZIP 下载 |
+
+### 下载的 ZIP 包含
+
+- 完整项目源代码（可直接运行）
+- `README.md` - 技术文档
+- `设计说明书.md` - 毕业设计论文初稿
+- `CLAUDE.md` - Claude Code 权限配置
+- `运行.bat` - Windows 一键运行脚本（自动安装环境并启动）
+- `先看我.txt` - 项目说明文件
+
+### 核心特性
+
+- **流式输出**：AI 生成内容实时展示，打字机式体验
+- **Markdown 实时渲染**：README 和设计说明书支持实时渲染预览
+- **一键复制**：所有生成内容支持一键复制到剪贴板
+- **文件树预览**：代码生成后可预览文件结构和代码内容
+
+---
+
+## 技术栈
+
+- **Framework**: Next.js 16 (App Router)
+- **Core**: React 19
+- **Language**: TypeScript 5
+- **UI 组件**: shadcn/ui (Radix UI)
+- **Styling**: Tailwind CSS 4 + Typography
+- **AI SDK**: OpenAI SDK（兼容百炼/DeepSeek/Kimi 等）
+- **ZIP 打包**: JSZip
+- **Markdown 渲染**: react-markdown + remark-gfm
+
+---
 
 ## 快速开始
 
-### 启动开发服务器
+### 环境要求
+
+- Node.js 18+
+- pnpm（推荐）或 npm
+
+### 安装与运行
 
 ```bash
-coze dev
+# 1. 克隆项目
+git clone https://github.com/你的用户名/graduation-ai-assistant.git
+cd graduation-ai-assistant
+
+# 2. 安装依赖
+pnpm install
+
+# 3. 启动开发服务器
+pnpm dev
+
+# 4. 浏览器访问
+# http://localhost:3000
 ```
 
-启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
-
-开发服务器支持热更新，修改代码后页面会自动刷新。
-
-### 构建生产版本
+### 构建与部署
 
 ```bash
-coze build
+# 构建生产版本
+pnpm build
+
+# 启动生产服务器
+pnpm start
 ```
 
-### 启动生产服务器
+---
 
-```bash
-coze start
+## AI 配置修改
+
+AI 模型配置已分离到 `src/lib/ai-config.ts`，修改此文件即可切换模型，**无需修改任何业务代码**。
+
+### 配置文件结构
+
+```typescript
+// src/lib/ai-config.ts
+
+export const AI_CONFIG = {
+  /** API 基础地址 */
+  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+
+  /** API 密钥 */
+  apiKey: 'sk-xxxxxxxx',
+
+  /** 默认模型 */
+  model: 'qwen-plus',
+
+  /** 各场景可单独指定不同模型 */
+  models: {
+    requirements: 'qwen-plus',       // 需求生成
+    analyzeRequirements: 'qwen-plus', // 需求分析
+    readme: 'qwen-plus',             // README 生成
+    designDoc: 'qwen-plus',          // 设计说明书（建议长上下文模型）
+    code: 'qwen-plus',               // 代码生成
+  },
+
+  /** 各场景参数 */
+  params: {
+    requirements: { temperature: 0.7, max_tokens: 4096 },
+    // ...
+  },
+};
 ```
+
+### 切换到其他模型
+
+本项目使用 OpenAI 兼容接口，支持所有兼容 OpenAI API 格式的大模型。
+
+#### 阿里云百炼（默认）
+
+```typescript
+baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+apiKey: 'sk-你的API密钥',
+model: 'qwen-plus',   // 可选: qwen-turbo, qwen-max, qwen-long
+```
+
+> 获取 API Key：登录 [阿里云百炼平台](https://bailian.console.aliyun.com/) → API-KEY 管理 → 创建
+
+#### DeepSeek
+
+```typescript
+baseURL: 'https://api.deepseek.com',
+apiKey: 'sk-你的API密钥',
+model: 'deepseek-chat',   // 或 deepseek-coder
+```
+
+#### Kimi（月之暗面）
+
+```typescript
+baseURL: 'https://api.moonshot.cn/v1',
+apiKey: 'sk-你的API密钥',
+model: 'moonshot-v1-128k',
+```
+
+#### OpenAI
+
+```typescript
+baseURL: 'https://api.openai.com/v1',
+apiKey: 'sk-你的API密钥',
+model: 'gpt-4o',
+```
+
+#### 豆包（火山引擎）
+
+```typescript
+baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
+apiKey: '你的API密钥',
+model: '你的接入点ID',
+```
+
+#### 通义千问其他模型
+
+| 模型名 | 说明 | 适用场景 |
+|:---:|:---|:---|
+| `qwen-turbo` | 速度快，成本低 | 需求生成、需求分析 |
+| `qwen-plus` | 性能均衡（推荐） | 所有场景 |
+| `qwen-max` | 效果最好，成本高 | 设计说明书、代码生成 |
+| `qwen-long` | 超长上下文 | 设计说明书（2万字） |
+
+### 敏感信息保护（重要）
+
+**不要将 API Key 硬编码在代码中提交到 GitHub！** 推荐使用环境变量：
+
+1. 修改 `src/lib/ai-config.ts`：
+
+```typescript
+export const AI_CONFIG = {
+  baseURL: process.env.AI_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  apiKey: process.env.AI_API_KEY || '',
+  // ...
+};
+```
+
+2. 创建 `.env.local` 文件（已加入 .gitignore）：
+
+```env
+AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+AI_API_KEY=sk-你的API密钥
+```
+
+---
 
 ## 项目结构
 
 ```
-src/
-├── app/                      # Next.js App Router 目录
-│   ├── layout.tsx           # 根布局组件
-│   ├── page.tsx             # 首页
-│   ├── globals.css          # 全局样式（包含 shadcn 主题变量）
-│   └── [route]/             # 其他路由页面
-├── components/              # React 组件目录
-│   └── ui/                  # shadcn/ui 基础组件（优先使用）
-│       ├── button.tsx
-│       ├── card.tsx
-│       └── ...
-├── lib/                     # 工具函数库
-│   └── utils.ts            # cn() 等工具函数
-└── hooks/                   # 自定义 React Hooks（可选）
-
-server/
-├── index.ts                 # 自定义服务器入口
-├── tsconfig.json           # Server TypeScript 配置
-└── dist/                    # 编译输出目录（自动生成）
+├── public/                          # 静态资源
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx               # 根布局
+│   │   ├── page.tsx                 # 首页
+│   │   ├── globals.css              # 全局样式
+│   │   └── api/
+│   │       ├── generate-requirements/  # [POST] 根据题目生成需求
+│   │       ├── analyze-requirements/   # [POST] 分析手动需求
+│   │       ├── generate-readme/        # [POST] 生成README
+│   │       ├── generate-design-doc/    # [POST] 生成设计说明书
+│   │       ├── generate-code/          # [POST] 生成代码
+│   │       └── download-package/       # [POST] 打包ZIP下载
+│   ├── components/
+│   │   ├── graduation-wizard.tsx    # 核心：5步向导组件
+│   │   └── ui/                      # shadcn/ui 组件库
+│   └── lib/
+│       ├── ai-config.ts            # AI 模型配置（修改此文件切换模型）
+│       ├── ai-client.ts            # AI 客户端封装
+│       └── utils.ts                # 工具函数
+├── .env.local                       # 环境变量（不提交到 Git）
+├── package.json
+├── tsconfig.json
+└── next.config.ts
 ```
 
-## 核心开发规范
+---
 
-### 1. 组件开发
+## API 接口
 
-**优先使用 shadcn/ui 基础组件**
+所有接口使用 SSE 流式输出（`text/event-stream`），前端通过 `fetch` + `body.getReader()` 实时读取。
 
-本项目已预装完整的 shadcn/ui 组件库，位于 `src/components/ui/` 目录。开发时应优先使用这些组件作为基础：
+| 接口 | 方法 | 功能 | 请求体 |
+|:---|:---:|:---|:---|
+| `/api/generate-requirements` | POST | 根据论文题目生成需求 JSON | `{ title }` |
+| `/api/analyze-requirements` | POST | 分析手动需求返回结构化 JSON | `{ requirements }` |
+| `/api/generate-readme` | POST | 生成 README.md Markdown | `{ title, requirements[] }` |
+| `/api/generate-design-doc` | POST | 生成 1.8-2 万字设计说明书 | `{ title, requirements[], readme? }` |
+| `/api/generate-code` | POST | 生成代码文件 JSON 数组 | `{ readme, title }` |
+| `/api/download-package` | POST | 返回 ZIP 文件 | `{ files[], title, designDoc?, readme? }` |
 
-```tsx
-// ✅ 推荐：使用 shadcn 基础组件
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+---
 
-export default function MyComponent() {
-  return (
-    <Card>
-      <CardHeader>标题</CardHeader>
-      <CardContent>
-        <Input placeholder="输入内容" />
-        <Button>提交</Button>
-      </CardContent>
-    </Card>
-  );
-}
-```
+## 部署到本地
 
-**可用的 shadcn 组件清单**
-
-- 表单：`button`, `input`, `textarea`, `select`, `checkbox`, `radio-group`, `switch`, `slider`
-- 布局：`card`, `separator`, `tabs`, `accordion`, `collapsible`, `scroll-area`
-- 反馈：`alert`, `alert-dialog`, `dialog`, `toast`, `sonner`, `progress`
-- 导航：`dropdown-menu`, `menubar`, `navigation-menu`, `context-menu`
-- 数据展示：`table`, `avatar`, `badge`, `hover-card`, `tooltip`, `popover`
-- 其他：`calendar`, `command`, `carousel`, `resizable`, `sidebar`
-
-详见 `src/components/ui/` 目录下的具体组件实现。
-
-### 2. 路由开发
-
-Next.js 使用文件系统路由，在 `src/app/` 目录下创建文件夹即可添加路由：
+### 方式一：开发模式
 
 ```bash
-# 创建新路由 /about
-src/app/about/page.tsx
-
-# 创建动态路由 /posts/[id]
-src/app/posts/[id]/page.tsx
-
-# 创建路由组（不影响 URL）
-src/app/(marketing)/about/page.tsx
-
-# 创建 API 路由
-src/app/api/users/route.ts
-```
-
-**页面组件示例**
-
-```tsx
-// src/app/about/page.tsx
-import { Button } from '@/components/ui/button';
-
-export const metadata = {
-  title: '关于我们',
-  description: '关于页面描述',
-};
-
-export default function AboutPage() {
-  return (
-    <div>
-      <h1>关于我们</h1>
-      <Button>了解更多</Button>
-    </div>
-  );
-}
-```
-
-**动态路由示例**
-
-```tsx
-// src/app/posts/[id]/page.tsx
-export default async function PostPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
-  return <div>文章 ID: {id}</div>;
-}
-```
-
-**API 路由示例**
-
-```tsx
-// src/app/api/users/route.ts
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  return NextResponse.json({ users: [] });
-}
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  return NextResponse.json({ success: true });
-}
-```
-
-### 3. 依赖管理
-
-**必须使用 pnpm 管理依赖**
-
-```bash
-# ✅ 安装依赖
+git clone https://github.com/你的用户名/graduation-ai-assistant.git
+cd graduation-ai-assistant
 pnpm install
-
-# ✅ 添加新依赖
-pnpm add package-name
-
-# ✅ 添加开发依赖
-pnpm add -D package-name
-
-# ❌ 禁止使用 npm 或 yarn
-# npm install  # 错误！
-# yarn add     # 错误！
+pnpm dev
+# 访问 http://localhost:3000
 ```
 
-项目已配置 `preinstall` 脚本，使用其他包管理器会报错。
+### 方式二：生产模式
 
-### 4. 样式开发
-
-**使用 Tailwind CSS v4**
-
-本项目使用 Tailwind CSS v4 进行样式开发，并已配置 shadcn 主题变量。
-
-```tsx
-// 使用 Tailwind 类名
-<div className="flex items-center gap-4 p-4 rounded-lg bg-background">
-  <Button className="bg-primary text-primary-foreground">
-    主要按钮
-  </Button>
-</div>
-
-// 使用 cn() 工具函数合并类名
-import { cn } from '@/lib/utils';
-
-<div className={cn(
-  "base-class",
-  condition && "conditional-class",
-  className
-)}>
-  内容
-</div>
+```bash
+pnpm build
+pnpm start
+# 访问 http://localhost:3000
 ```
 
-**主题变量**
+### 方式三：Docker 部署
 
-主题变量定义在 `src/app/globals.css` 中，支持亮色/暗色模式：
-
-- `--background`, `--foreground`
-- `--primary`, `--primary-foreground`
-- `--secondary`, `--secondary-foreground`
-- `--muted`, `--muted-foreground`
-- `--accent`, `--accent-foreground`
-- `--destructive`, `--destructive-foreground`
-- `--border`, `--input`, `--ring`
-
-### 5. 表单开发
-
-推荐使用 `react-hook-form` + `zod` 进行表单开发：
-
-```tsx
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-
-const formSchema = z.object({
-  username: z.string().min(2, '用户名至少 2 个字符'),
-  email: z.string().email('请输入有效的邮箱'),
-});
-
-export default function MyForm() {
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: { username: '', email: '' },
-  });
-
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    console.log(data);
-  };
-
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      <Input {...form.register('username')} />
-      <Input {...form.register('email')} />
-      <Button type="submit">提交</Button>
-    </form>
-  );
-}
+```dockerfile
+FROM node:24-alpine
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+EXPOSE 3000
+CMD ["pnpm", "start"]
 ```
 
-### 6. 数据获取
-
-**服务端组件（推荐）**
-
-```tsx
-// src/app/posts/page.tsx
-async function getPosts() {
-  const res = await fetch('https://api.example.com/posts', {
-    cache: 'no-store', // 或 'force-cache'
-  });
-  return res.json();
-}
-
-export default async function PostsPage() {
-  const posts = await getPosts();
-
-  return (
-    <div>
-      {posts.map(post => (
-        <div key={post.id}>{post.title}</div>
-      ))}
-    </div>
-  );
-}
+```bash
+docker build -t graduation-ai .
+docker run -p 3000:3000 -e AI_API_KEY=sk-xxx graduation-ai
 ```
 
-**客户端组件**
+---
 
-```tsx
-'use client';
+## 常见问题
 
-import { useEffect, useState } from 'react';
+### Q: AI 生成失败怎么办？
 
-export default function ClientComponent() {
-  const [data, setData] = useState(null);
+- 检查 API Key 是否正确（`src/lib/ai-config.ts` 或 `.env.local`）
+- 检查网络是否能访问 API 地址
+- 设计说明书生成需要较长时间（1-2 分钟），请耐心等待
 
-  useEffect(() => {
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(setData);
-  }, []);
+### Q: 如何更换 AI 模型？
 
-  return <div>{JSON.stringify(data)}</div>;
-}
-```
+修改 `src/lib/ai-config.ts` 中的 `baseURL`、`apiKey`、`model` 字段即可，详见上方「AI 配置修改」章节。
 
-## 常见开发场景
+### Q: 生成的代码能直接运行吗？
 
-### 添加新页面
+ZIP 包中的代码是 AI 根据需求自动生成的，可能需要根据实际情况微调。ZIP 中包含 `运行.bat`（Windows）可一键配置环境并启动。
 
-1. 在 `src/app/` 下创建文件夹和 `page.tsx`
-2. 使用 shadcn 组件构建 UI
-3. 根据需要添加 `layout.tsx` 和 `loading.tsx`
+### Q: 设计说明书字数够吗？
 
-### 创建业务组件
+设计说明书初稿约 1.8-2 万字，包含 8 个完整章节。建议在此基础上根据实际情况修改完善。
 
-1. 在 `src/components/` 下创建组件文件（非 UI 组件）
-2. 优先组合使用 `src/components/ui/` 中的基础组件
-3. 使用 TypeScript 定义 Props 类型
+---
 
-### 添加全局状态
+## License
 
-推荐使用 React Context 或 Zustand：
-
-```tsx
-// src/lib/store.ts
-import { create } from 'zustand';
-
-interface Store {
-  count: number;
-  increment: () => void;
-}
-
-export const useStore = create<Store>((set) => ({
-  count: 0,
-  increment: () => set((state) => ({ count: state.count + 1 })),
-}));
-```
-
-### 集成数据库
-
-推荐使用 Prisma 或 Drizzle ORM，在 `src/lib/db.ts` 中配置。
-
-## 技术栈
-
-- **框架**: Next.js 16.1.1 (App Router)
-- **UI 组件**: shadcn/ui (基于 Radix UI)
-- **样式**: Tailwind CSS v4
-- **表单**: React Hook Form + Zod
-- **图标**: Lucide React
-- **字体**: Geist Sans & Geist Mono
-- **包管理器**: pnpm 9+
-- **TypeScript**: 5.x
-
-## 参考文档
-
-- [Next.js 官方文档](https://nextjs.org/docs)
-- [shadcn/ui 组件文档](https://ui.shadcn.com)
-- [Tailwind CSS 文档](https://tailwindcss.com/docs)
-- [React Hook Form](https://react-hook-form.com)
-
-## 重要提示
-
-1. **必须使用 pnpm** 作为包管理器
-2. **优先使用 shadcn/ui 组件** 而不是从零开发基础组件
-3. **遵循 Next.js App Router 规范**，正确区分服务端/客户端组件
-4. **使用 TypeScript** 进行类型安全开发
-5. **使用 `@/` 路径别名** 导入模块（已配置）
+MIT
