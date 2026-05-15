@@ -24,15 +24,15 @@ export const AI_CONFIG = {
   /** 各场景模型配置（可单独指定不同模型） */
   models: {
     /** 需求生成 */
-    requirements: 'qwen-plus',
+    requirements: 'qwen3-vl-235b-a22b-thinking',
     /** 需求分析 */
-    analyzeRequirements: 'qwen-plus',
+    analyzeRequirements: 'qwen3-vl-235b-a22b-thinking',
     /** README 生成 */
-    readme: 'qwen-plus',
+    readme: 'qwen3-vl-235b-a22b-thinking',
     /** 设计说明书生成（需要长文本输出，建议用上下文长的模型） */
-    designDoc: 'qwen-plus',
+    designDoc: 'qwen3-vl-235b-a22b-thinking',
     /** 代码生成 */
-    code: 'qwen-plus',
+    code: 'qwen-plus-2025-07-28',
   },
 
   /** 各场景默认参数 */
