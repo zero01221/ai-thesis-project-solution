@@ -276,8 +276,4 @@ docker run -p 3000:3000 -e AI_API_KEY=sk-xxx graduation-ai
 
 ZIP 包中的代码是 AI 根据需求自动生成的，可能需要根据实际情况微调。ZIP 中包含 `运行.bat`（Windows）可一键配置环境并启动。
 
-### Q: 设计说明书字数够吗？
-
-设计说明书初稿约 1.8-2 万字，但仅供参考。
-
 ---
