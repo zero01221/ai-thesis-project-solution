@@ -24,7 +24,7 @@ import {
   Edit3,
   Copy,
   Check,
-  Zap,
+  Github,
   BrainCircuit,
   FolderTree,
   BookOpen,
@@ -418,8 +418,15 @@ export default function GraduationWizard() {
             </div>
           </div>
           <Badge variant="secondary" className="gap-1.5 px-3 py-1 text-xs">
-            <Zap className="h-3 w-3" />
-            AI 驱动
+            <Github className="h-3 w-3" />
+            <a
+              href="https://github.com/zero01221"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              zero01221
+            </a>
           </Badge>
         </div>
       </header>
@@ -481,34 +488,47 @@ export default function GraduationWizard() {
         {step === 1 && (
           <Card className="border-0 shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
             <CardContent className="pt-8">
-              {/* Mode toggle - small switch style */}
-              <div className="mb-6 flex items-center justify-center gap-3">
-                <span className={`text-sm font-medium transition-colors ${inputMode === 'auto' ? 'text-violet-600' : 'text-slate-400'}`}>
-                  <Sparkles className="mr-1 inline h-3.5 w-3.5" />
-                  智能生成
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={inputMode === 'manual'}
-                  onClick={() => setInputMode(inputMode === 'auto' ? 'manual' : 'auto')}
-                  className="relative h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-                  style={{ backgroundColor: inputMode === 'auto' ? '#7c3aed' : '#f59e0b' }}
-                >
-                  <span
-                    className="pointer-events-none inline-block h-5.5 w-5.5 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out"
-                    style={{
-                      width: '22px',
-                      height: '22px',
-                      transform: inputMode === 'manual' ? 'translateX(26px)' : 'translateX(1px)',
-                      marginTop: '1px',
-                    }}
-                  />
-                </button>
-                <span className={`text-sm font-medium transition-colors ${inputMode === 'manual' ? 'text-amber-600' : 'text-slate-400'}`}>
-                  手动输入
-                  <Edit3 className="ml-1 inline h-3.5 w-3.5" />
-                </span>
+              {/* Mode toggle - segmented control style */}
+              <div className="mb-6 flex justify-center">
+                <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('auto')}
+                    className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                      inputMode === 'auto'
+                        ? 'bg-white text-violet-700 shadow-md dark:bg-slate-700 dark:text-violet-400'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    智能生成
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('manual')}
+                    className={`flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                      inputMode === 'manual'
+                        ? 'bg-white text-amber-700 shadow-md dark:bg-slate-700 dark:text-amber-400'
+                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    手动输入
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode description */}
+              <div className="mb-4 text-center">
+                {inputMode === 'auto' ? (
+                  <p className="text-sm text-violet-600 dark:text-violet-400">
+                    输入毕业论文题目，AI 自动分析并生成 8-12 条详细功能需求
+                  </p>
+                ) : (
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    描述你的项目需求，AI 会结构化整理并补充完善缺失的需求
+                  </p>
+                )}
               </div>
 
               {/* Large input area */}
