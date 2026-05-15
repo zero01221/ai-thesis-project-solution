@@ -16,7 +16,7 @@ export const AI_CONFIG = {
   baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
 
   /** API 密钥 */
-  apiKey: 'sk-6c80654470df4425a904a1c2ba191628',
+  apiKey: 'sk-',
 
   /** 默认模型 */
   model: 'qwen-plus',
