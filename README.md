@@ -6,13 +6,13 @@
 
 ### 5 步向导式工作流
 
-| 步骤 | 功能 | 说明 |
-|:---:|:---:|:---|
-| 1 | **需求输入** | 智能生成：输入论文题目，AI 自动生成 8-12 条详细功能需求；手动输入：描述需求，AI 分析并结构化完善 |
-| 2 | **需求确认** | 可视化需求列表，支持编辑、删除、新增需求，审核后确认 |
-| 3 | **生成 README** | AI 根据需求生成完整详细的 README.md 技术文档，用于指导后续 AI 编程 |
-| 4 | **设计说明书** | AI 撰写 1.8-2 万字设计说明书初稿（8 章完整结构），可作为毕业论文参考 |
-| 5 | **代码生成与下载** | AI 根据 README 生成完整可运行的项目代码，一键打包 ZIP 下载 |
+| 步骤 |        功能        | 说明                                                                                             |
+| :--: | :----------------: | :----------------------------------------------------------------------------------------------- |
+|  1   |    **需求输入**    | 智能生成：输入论文题目，AI 自动生成 8-12 条详细功能需求；手动输入：描述需求，AI 分析并结构化完善 |
+|  2   |    **需求确认**    | 可视化需求列表，支持编辑、删除、新增需求，审核后确认                                             |
+|  3   |  **生成 README**   | AI 根据需求生成完整详细的 README.md 技术文档，用于指导后续 AI 编程                               |
+|  4   |   **设计说明书**   | AI 撰写 1.8-2 万字设计说明书初稿（仅供参考，无任何专业性）                                       |
+|  5   | **代码生成与下载** | AI 根据 README 生成完整可运行的项目代码，一键打包 ZIP 下载                                       |
 
 ### 下载的 ZIP 包含
 
@@ -63,7 +63,7 @@ cd graduation-ai-assistant
 pnpm install
 
 # 3. 启动开发服务器
-pnpm dev
+pnpm run dev
 
 # 4. 浏览器访问
 # http://localhost:3000
@@ -92,21 +92,21 @@ AI 模型配置已分离到 `src/lib/ai-config.ts`，修改此文件即可切换
 
 export const AI_CONFIG = {
   /** API 基础地址 */
-  baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 
   /** API 密钥 */
-  apiKey: 'sk-xxxxxxxx',
+  apiKey: "sk-xxxxxxxx",
 
   /** 默认模型 */
-  model: 'qwen-plus',
+  model: "qwen-plus",
 
   /** 各场景可单独指定不同模型 */
   models: {
-    requirements: 'qwen-plus',       // 需求生成
-    analyzeRequirements: 'qwen-plus', // 需求分析
-    readme: 'qwen-plus',             // README 生成
-    designDoc: 'qwen-plus',          // 设计说明书（建议长上下文模型）
-    code: 'qwen-plus',               // 代码生成
+    requirements: "qwen-plus", // 需求生成
+    analyzeRequirements: "qwen-plus", // 需求分析
+    readme: "qwen-plus", // README 生成
+    designDoc: "qwen-plus", // 设计说明书（建议长上下文模型）
+    code: "qwen-plus", // 代码生成
   },
 
   /** 各场景参数 */
@@ -165,33 +165,12 @@ model: '你的接入点ID',
 
 #### 通义千问其他模型
 
-| 模型名 | 说明 | 适用场景 |
-|:---:|:---|:---|
-| `qwen-turbo` | 速度快，成本低 | 需求生成、需求分析 |
-| `qwen-plus` | 性能均衡（推荐） | 所有场景 |
-| `qwen-max` | 效果最好，成本高 | 设计说明书、代码生成 |
-| `qwen-long` | 超长上下文 | 设计说明书（2万字） |
-
-### 敏感信息保护（重要）
-
-**不要将 API Key 硬编码在代码中提交到 GitHub！** 推荐使用环境变量：
-
-1. 修改 `src/lib/ai-config.ts`：
-
-```typescript
-export const AI_CONFIG = {
-  baseURL: process.env.AI_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  apiKey: process.env.AI_API_KEY || '',
-  // ...
-};
-```
-
-2. 创建 `.env.local` 文件（已加入 .gitignore）：
-
-```env
-AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-AI_API_KEY=sk-你的API密钥
-```
+|    模型名    | 说明             | 适用场景             |
+| :----------: | :--------------- | :------------------- |
+| `qwen-turbo` | 速度快，成本低   | 需求生成、需求分析   |
+| `qwen-plus`  | 性能均衡（推荐） | 所有场景             |
+|  `qwen-max`  | 效果最好，成本高 | 设计说明书、代码生成 |
+| `qwen-long`  | 超长上下文       | 设计说明书（2万字）  |
 
 ---
 
@@ -230,14 +209,14 @@ AI_API_KEY=sk-你的API密钥
 
 所有接口使用 SSE 流式输出（`text/event-stream`），前端通过 `fetch` + `body.getReader()` 实时读取。
 
-| 接口 | 方法 | 功能 | 请求体 |
-|:---|:---:|:---|:---|
-| `/api/generate-requirements` | POST | 根据论文题目生成需求 JSON | `{ title }` |
-| `/api/analyze-requirements` | POST | 分析手动需求返回结构化 JSON | `{ requirements }` |
-| `/api/generate-readme` | POST | 生成 README.md Markdown | `{ title, requirements[] }` |
-| `/api/generate-design-doc` | POST | 生成 1.8-2 万字设计说明书 | `{ title, requirements[], readme? }` |
-| `/api/generate-code` | POST | 生成代码文件 JSON 数组 | `{ readme, title }` |
-| `/api/download-package` | POST | 返回 ZIP 文件 | `{ files[], title, designDoc?, readme? }` |
+| 接口                         | 方法 | 功能                        | 请求体                                    |
+| :--------------------------- | :--: | :-------------------------- | :---------------------------------------- |
+| `/api/generate-requirements` | POST | 根据论文题目生成需求 JSON   | `{ title }`                               |
+| `/api/analyze-requirements`  | POST | 分析手动需求返回结构化 JSON | `{ requirements }`                        |
+| `/api/generate-readme`       | POST | 生成 README.md Markdown     | `{ title, requirements[] }`               |
+| `/api/generate-design-doc`   | POST | 生成 1.8-2 万字设计说明书   | `{ title, requirements[], readme? }`      |
+| `/api/generate-code`         | POST | 生成代码文件 JSON 数组      | `{ readme, title }`                       |
+| `/api/download-package`      | POST | 返回 ZIP 文件               | `{ files[], title, designDoc?, readme? }` |
 
 ---
 
@@ -299,10 +278,6 @@ ZIP 包中的代码是 AI 根据需求自动生成的，可能需要根据实际
 
 ### Q: 设计说明书字数够吗？
 
-设计说明书初稿约 1.8-2 万字，包含 8 个完整章节。建议在此基础上根据实际情况修改完善。
+设计说明书初稿约 1.8-2 万字，但仅供参考。
 
 ---
-
-## License
-
-MIT
