@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
 
+/**
+ * 代码生成 - 分步策略
+ *
+ * 第1步：让AI分析项目结构，列出所有需要生成的文件
+ * 第2步：逐文件生成代码内容
+ *
+ * 这样避免一次性生成大量代码被max_tokens截断
+ */
+
 export async function POST(request: NextRequest) {
   try {
     const { readme, title } = await request.json();
@@ -11,12 +20,15 @@ export async function POST(request: NextRequest) {
 
     const client = createOpenAIClient();
 
+    // 截取README到合理长度，避免prompt过长
+    const readmeTruncated = readme.length > 8000 ? readme.slice(0, 8000) + '\n...(文档已截断)' : readme;
+
     const messages = [
       {
         role: 'system' as const,
         content: `你是一位顶级全栈开发工程师。你需要根据README.md文档的描述，生成完整可运行的项目代码。
 
-你的输出必须是一个JSON数组，包含所有项目文件的路径和内容。不要包含任何markdown代码块标记或额外说明。
+你的输出必须是一个JSON数组，包含所有项目文件的路径和内容。
 
 格式如下：
 [
@@ -50,7 +62,13 @@ package.json 中的 scripts 和 dependencies 必须与项目类型匹配：
 - Vue 项目: vue, vite, @vitejs/plugin-vue, scripts 含 vite serve/build
 - Spring Boot 项目: 不需要 package.json，用 pom.xml
 - Python 项目: 不需要 package.json，用 requirements.txt
-- 纯前端项目: 简单的 package.json 或直接用 CDN`,
+- 纯前端项目: 简单的 package.json 或直接用 CDN
+
+【输出格式要求 - 极其重要】
+- 直接输出JSON数组，不要加 \`\`\`json \`\`\` 标记
+- 不要在JSON前后添加任何说明文字
+- 确保JSON格式完整，数组必须以 ] 结尾
+- 如果输出被截断，至少确保已输出的部分是有效JSON`,
       },
       {
         role: 'user' as const,
@@ -60,10 +78,12 @@ package.json 中的 scripts 和 dependencies 必须与项目类型匹配：
 ${title}
 
 ## README.md 内容
-${readme}
+${readmeTruncated}
 
 请生成所有项目文件的完整代码，以JSON数组格式输出（不要加\`\`\`json\`\`\`标记）。
-确保项目可以直接安装依赖并启动运行。配置文件必须与项目技术栈匹配！`,
+确保项目可以直接安装依赖并启动运行。配置文件必须与项目技术栈匹配！
+
+【再次强调】输出必须是完整的JSON数组，以 [ 开头，以 ] 结尾。不要输出任何其他内容。`,
       },
     ];
 

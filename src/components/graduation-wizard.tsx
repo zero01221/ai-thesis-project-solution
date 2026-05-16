@@ -123,12 +123,14 @@ function parseRequirements(text: string): Requirement[] {
   return [];
 }
 
-// Parse code files from AI response
+// Parse code files from AI response (with truncation recovery)
 function parseCodeFiles(text: string): CodeFile[] {
   let cleaned = text.trim();
+  // Remove markdown code block markers
   cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
+  // Strategy 1: Try direct JSON parse
   try {
     const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed)) {
@@ -140,6 +142,7 @@ function parseCodeFiles(text: string): CodeFile[] {
         }));
     }
   } catch {
+    // Strategy 2: Try to extract JSON array from text
     const match = cleaned.match(/\[[\s\S]*\]/);
     if (match) {
       try {
@@ -153,12 +156,38 @@ function parseCodeFiles(text: string): CodeFile[] {
             }));
         }
       } catch {
-        // Fall through
+        // Strategy 3: Truncation recovery - try to fix incomplete JSON
+        // Find the last complete object in the array
+        const files = recoverTruncatedJSON(cleaned);
+        if (files.length > 0) return files;
       }
+    } else {
+      // No closing bracket - definitely truncated
+      const files = recoverTruncatedJSON(cleaned);
+      if (files.length > 0) return files;
     }
   }
 
   return [];
+}
+
+// Recover files from truncated JSON array
+function recoverTruncatedJSON(text: string): CodeFile[] {
+  const files: CodeFile[] = [];
+
+  // Match individual file objects with "path" and "content" fields
+  // This regex finds objects like: { "path": "...", "content": "..." }
+  const objectRegex = /\{\s*"path"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
+
+  let match;
+  while ((match = objectRegex.exec(text)) !== null) {
+    const path = match[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    // content might be truncated, but we take what we have
+    let content = match[2].replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r');
+    files.push({ path, content });
+  }
+
+  return files;
 }
 
 export default function GraduationWizard() {
@@ -248,11 +277,13 @@ export default function GraduationWizard() {
     }
   }, [requirements, title]);
 
-  // Step 4: Generate Design Doc
+  // Step 4: Generate Design Doc (分批生成)
+  const [designDocBatch, setDesignDocBatch] = useState(0);
   const handleGenerateDesignDoc = useCallback(async () => {
     if (requirements.length === 0) return;
 
     setIsGenerating(true);
+    setDesignDocBatch(1);
     setStreamText('');
 
     try {
@@ -265,6 +296,9 @@ export default function GraduationWizard() {
         },
         (text) => {
           setStreamText(text);
+          // Track batch progress by counting --- separators
+          const batchCount = (text.match(/\n---\n/g) || []).length + 1;
+          setDesignDocBatch(batchCount);
           setTimeout(() => {
             designDocScrollRef.current?.scrollTo({
               top: designDocScrollRef.current.scrollHeight,
@@ -303,10 +337,21 @@ export default function GraduationWizard() {
 
       const parsed = parseCodeFiles(fullText);
       if (parsed.length === 0) {
-        throw new Error('AI返回的代码格式无法解析，请重试');
+        throw new Error(
+          'AI返回的代码格式无法解析。可能原因：\n1. AI输出被截断（项目较大时容易发生）\n2. AI返回了非JSON格式内容\n\n建议：点击重试，或简化需求后重试',
+        );
       }
 
+      // Check if output was likely truncated
+      const lastBracket = fullText.trim().lastIndexOf(']');
+      const hasClosingBracket = lastBracket !== -1 && fullText.trim().substring(lastBracket).trim() === ']';
+
       setCodeFiles(parsed);
+
+      if (!hasClosingBracket && parsed.length > 0) {
+        // Output was truncated but we recovered some files
+        alert(`注意：AI输出被截断，成功恢复了 ${parsed.length} 个文件，但部分文件可能不完整。建议检查后重新生成。`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : '代码生成失败';
       alert(message);
@@ -864,7 +909,7 @@ export default function GraduationWizard() {
               {isGenerating && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  AI 正在撰写设计说明书（约1.8-2万字），请耐心等待...
+                  AI 正在分批撰写设计说明书（第{designDocBatch}/3批，约1.8-2万字），请耐心等待...
                 </div>
               )}
 

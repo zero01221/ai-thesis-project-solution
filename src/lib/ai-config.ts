@@ -41,7 +41,7 @@ export const AI_CONFIG = {
     analyzeRequirements: { temperature: 0.7, max_tokens: 4096 },
     readme: { temperature: 0.5, max_tokens: 8192 },
     designDoc: { temperature: 0.5, max_tokens: 16384 },
-    code: { temperature: 0.3, max_tokens: 8192 },
+    code: { temperature: 0.3, max_tokens: 16384 },
   },
 } as const;
 
