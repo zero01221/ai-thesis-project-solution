@@ -2,17 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
 
 /**
- * 代码生成 - 分步策略
+ * 代码生成 - 第2步：根据文件清单分批生成代码
  *
- * 第1步：让AI分析项目结构，列出所有需要生成的文件
- * 第2步：逐文件生成代码内容
+ * 接收文件清单（path + description），生成对应的代码内容
+ * 每次只生成少量文件，避免token截断
  *
- * 这样避免一次性生成大量代码被max_tokens截断
+ * 请求参数：
+ * - files: 文件清单数组 [{ path, description }]
+ * - readme: README文档内容
+ * - title: 项目名称
+ * - batchIndex: 当前批次索引（从0开始）
+ * - totalBatches: 总批次数
  */
+
+interface FileStructure {
+  path: string;
+  description: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const { readme, title } = await request.json();
+    const { files, readme, title, batchIndex, totalBatches } = await request.json() as {
+      files?: FileStructure[];
+      readme?: string;
+      title?: string;
+      batchIndex?: number;
+      totalBatches?: number;
+    };
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return NextResponse.json({ error: '缺少文件清单' }, { status: 400 });
+    }
 
     if (!readme || typeof readme !== 'string' || readme.trim().length === 0) {
       return NextResponse.json({ error: '缺少README文档内容' }, { status: 400 });
@@ -20,59 +40,44 @@ export async function POST(request: NextRequest) {
 
     const client = createOpenAIClient();
 
-    // 截取README到合理长度，避免prompt过长
-    const readmeTruncated = readme.length > 8000 ? readme.slice(0, 8000) + '\n...(文档已截断)' : readme;
+    // 截取README到合理长度
+    const readmeTruncated = readme.length > 6000 ? readme.slice(0, 6000) + '\n...(文档已截断)' : readme;
+
+    // 构建文件清单描述
+    const fileList = files.map((f, i) => `${i + 1}. ${f.path} - ${f.description}`).join('\n');
 
     const messages = [
       {
         role: 'system' as const,
-        content: `你是一位顶级全栈开发工程师。你需要根据README.md文档的描述，生成完整可运行的项目代码。
+        content: `你是一位顶级全栈开发工程师。你需要根据README.md文档和文件清单，生成指定文件的完整代码。
 
-你的输出必须是一个JSON数组，包含所有项目文件的路径和内容。
+你的输出必须是一个JSON数组，包含所有指定文件的路径和完整代码内容。
 
 格式如下：
 [
   {
-    "path": "文件相对路径（如 src/index.html）",
+    "path": "文件相对路径",
     "content": "文件的完整内容"
   }
 ]
 
 关键要求：
-1. 代码必须完整可运行，不能有省略或占位符
-2. 必须包含所有该技术栈必需的配置文件
-3. 必须包含入口文件和所有必要的模块
-4. 严格遵循README中指定的技术栈
-5. 代码质量要高，包含必要的注释和错误处理
-6. UI要美观现代，使用流行的CSS框架
-7. 每个文件的内容必须完整，不要写"// ... 其他代码"之类的省略
-
-【重要】根据项目技术栈生成正确的配置文件：
-- 如果是 Next.js/React 项目：需要 package.json, next.config.js, tsconfig.json 等
-- 如果是 Vue 项目：需要 package.json, vite.config.ts, tsconfig.json 等
-- 如果是 Spring Boot/Java 项目：需要 pom.xml, application.yml, Maven目录结构等
-- 如果是 Python/Flask/Django 项目：需要 requirements.txt, setup.py, manage.py 等
-- 如果是纯 HTML/CSS/JS 项目：需要 index.html, 可能需要简单的 package.json
-- 如果是微信小程序：需要 app.json, project.config.json 等
-
-不要给所有项目都生成 Next.js 配置文件！必须根据README中指定的技术栈来决定需要哪些配置文件。
-
-package.json 中的 scripts 和 dependencies 必须与项目类型匹配：
-- Next.js 项目: next, react, react-dom, scripts 含 next dev/build/start
-- Vue 项目: vue, vite, @vitejs/plugin-vue, scripts 含 vite serve/build
-- Spring Boot 项目: 不需要 package.json，用 pom.xml
-- Python 项目: 不需要 package.json，用 requirements.txt
-- 纯前端项目: 简单的 package.json 或直接用 CDN
+1. 代码必须完整可运行，不能有省略或占位符（如 "// ... 其他代码"）
+2. 严格遵循README中指定的技术栈
+3. 代码质量要高，包含必要的注释和错误处理
+4. UI相关代码要美观现代
+5. 文件之间要保持一致的代码风格和命名规范
+6. 类之间的引用关系必须正确
 
 【输出格式要求 - 极其重要】
 - 直接输出JSON数组，不要加 \`\`\`json \`\`\` 标记
 - 不要在JSON前后添加任何说明文字
 - 确保JSON格式完整，数组必须以 ] 结尾
-- 如果输出被截断，至少确保已输出的部分是有效JSON`,
+- 每个文件的content必须是完整的代码，不能省略`,
       },
       {
         role: 'user' as const,
-        content: `请根据以下README.md文档，生成完整的项目代码。
+        content: `请为以下项目生成第 ${batchIndex !== undefined ? batchIndex + 1 : 1}/${totalBatches || 1} 批文件的完整代码。
 
 ## 项目名称
 ${title}
@@ -80,16 +85,17 @@ ${title}
 ## README.md 内容
 ${readmeTruncated}
 
-请生成所有项目文件的完整代码，以JSON数组格式输出（不要加\`\`\`json\`\`\`标记）。
-确保项目可以直接安装依赖并启动运行。配置文件必须与项目技术栈匹配！
+## 需要生成的文件清单
+${fileList}
 
-【再次强调】输出必须是完整的JSON数组，以 [ 开头，以 ] 结尾。不要输出任何其他内容。`,
+请生成上述 ${files.length} 个文件的完整代码，以JSON数组格式输出。
+确保每个文件的内容完整，不要省略任何代码。`,
       },
     ];
 
     return createStreamResponse(client, messages, 'code');
   } catch (error) {
-    console.error('Generate code error:', error);
+    console.error('Generate code batch error:', error);
     return NextResponse.json({ error: '代码生成失败，请重试' }, { status: 500 });
   }
 }

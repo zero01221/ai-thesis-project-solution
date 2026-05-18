@@ -43,6 +43,11 @@ interface CodeFile {
   content: string;
 }
 
+interface CodeStructureItem {
+  path: string;
+  description: string;
+}
+
 type Step = 1 | 2 | 3 | 4 | 5;
 
 const STEPS = [
@@ -123,6 +128,44 @@ function parseRequirements(text: string): Requirement[] {
   return [];
 }
 
+// Parse code file structure (path + description) from AI response
+function parseCodeStructure(text: string): CodeStructureItem[] {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+  cleaned = cleaned.trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item: Record<string, unknown>) => item.path)
+        .map((item: Record<string, unknown>) => ({
+          path: item.path as string,
+          description: (item.description as string) || '',
+        }));
+    }
+  } catch {
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((item: Record<string, unknown>) => item.path)
+            .map((item: Record<string, unknown>) => ({
+              path: item.path as string,
+              description: (item.description as string) || '',
+            }));
+        }
+      } catch {
+        // Fall through
+      }
+    }
+  }
+
+  return [];
+}
+
 // Parse code files from AI response (with truncation recovery)
 function parseCodeFiles(text: string): CodeFile[] {
   let cleaned = text.trim();
@@ -157,7 +200,6 @@ function parseCodeFiles(text: string): CodeFile[] {
         }
       } catch {
         // Strategy 3: Truncation recovery - try to fix incomplete JSON
-        // Find the last complete object in the array
         const files = recoverTruncatedJSON(cleaned);
         if (files.length > 0) return files;
       }
@@ -174,15 +216,11 @@ function parseCodeFiles(text: string): CodeFile[] {
 // Recover files from truncated JSON array
 function recoverTruncatedJSON(text: string): CodeFile[] {
   const files: CodeFile[] = [];
-
-  // Match individual file objects with "path" and "content" fields
-  // This regex finds objects like: { "path": "...", "content": "..." }
   const objectRegex = /\{\s*"path"\s*:\s*"([^"]*(?:\\.[^"]*)*)"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)"/g;
 
   let match;
   while ((match = objectRegex.exec(text)) !== null) {
     const path = match[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-    // content might be truncated, but we take what we have
     let content = match[2].replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r');
     files.push({ path, content });
   }
@@ -199,6 +237,8 @@ export default function GraduationWizard() {
   const [readmeContent, setReadmeContent] = useState('');
   const [designDocContent, setDesignDocContent] = useState('');
   const [codeFiles, setCodeFiles] = useState<CodeFile[]>([]);
+  const [codeStructure, setCodeStructure] = useState<CodeStructureItem[]>([]);
+  const [codeBatchInfo, setCodeBatchInfo] = useState({ current: 0, total: 0 });
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamText, setStreamText] = useState('');
   const [editingReq, setEditingReq] = useState<number | null>(null);
@@ -318,39 +358,80 @@ export default function GraduationWizard() {
     }
   }, [requirements, title, readmeContent]);
 
-  // Step 5: Generate code
+  // Step 5: Generate code (two-phase: structure → batch content)
+  const BATCH_SIZE = 4; // files per batch
   const handleGenerateCode = useCallback(async () => {
     if (!readmeContent.trim()) return;
 
     setIsGenerating(true);
     setStreamText('');
     setCodeFiles([]);
+    setCodeStructure([]);
+    setCodeBatchInfo({ current: 0, total: 0 });
 
     try {
-      const fullText = await streamFetch(
-        '/api/generate-code',
+      // ===== Phase 1: Generate file structure (path + description) =====
+      setStreamText('正在分析项目结构，规划文件清单...');
+      const structureText = await streamFetch(
+        '/api/generate-code-structure',
         { readme: readmeContent, title: title.trim() || 'graduation-project' },
         (text) => {
           setStreamText(text);
         },
       );
 
-      const parsed = parseCodeFiles(fullText);
-      if (parsed.length === 0) {
-        throw new Error(
-          'AI返回的代码格式无法解析。可能原因：\n1. AI输出被截断（项目较大时容易发生）\n2. AI返回了非JSON格式内容\n\n建议：点击重试，或简化需求后重试',
-        );
+      const structure = parseCodeStructure(structureText);
+      if (structure.length === 0) {
+        throw new Error('AI无法解析项目文件结构，请重试');
       }
 
-      // Check if output was likely truncated
-      const lastBracket = fullText.trim().lastIndexOf(']');
-      const hasClosingBracket = lastBracket !== -1 && fullText.trim().substring(lastBracket).trim() === ']';
+      setCodeStructure(structure);
 
-      setCodeFiles(parsed);
+      // ===== Phase 2: Generate code in batches =====
+      const totalBatches = Math.ceil(structure.length / BATCH_SIZE);
+      setCodeBatchInfo({ current: 0, total: totalBatches });
 
-      if (!hasClosingBracket && parsed.length > 0) {
-        // Output was truncated but we recovered some files
-        alert(`注意：AI输出被截断，成功恢复了 ${parsed.length} 个文件，但部分文件可能不完整。建议检查后重新生成。`);
+      const allFiles: CodeFile[] = [];
+
+      for (let i = 0; i < totalBatches; i++) {
+        const batchFiles = structure.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        setCodeBatchInfo({ current: i + 1, total: totalBatches });
+        setStreamText(`正在生成第 ${i + 1}/${totalBatches} 批文件（${batchFiles.map(f => f.path.split('/').pop()).join(', ')}）...`);
+
+        const batchText = await streamFetch(
+          '/api/generate-code',
+          {
+            files: batchFiles,
+            readme: readmeContent,
+            title: title.trim() || 'graduation-project',
+            batchIndex: i,
+            totalBatches,
+          },
+          (text) => {
+            setStreamText(text);
+          },
+        );
+
+        const parsed = parseCodeFiles(batchText);
+        if (parsed.length === 0) {
+          console.warn(`Batch ${i + 1} failed to parse, skipping ${batchFiles.length} files`);
+        } else {
+          allFiles.push(...parsed);
+          // Update files progressively so user sees results
+          setCodeFiles([...allFiles]);
+        }
+      }
+
+      if (allFiles.length === 0) {
+        throw new Error('代码生成失败，所有批次均无法解析。请重试。');
+      }
+
+      // Check if some files are missing
+      const missingFiles = structure.filter(
+        (s) => !allFiles.some((f) => f.path === s.path),
+      );
+      if (missingFiles.length > 0) {
+        alert(`生成完成！共 ${structure.length} 个文件中成功生成了 ${allFiles.length} 个。\n\n缺失文件：${missingFiles.map(f => f.path).join(', ')}\n\n建议点击重新生成尝试补充。`);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : '代码生成失败';
@@ -962,7 +1043,10 @@ export default function GraduationWizard() {
                     <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-12 dark:border-slate-700">
                       <Code2 className="mb-4 h-10 w-10 text-slate-300 dark:text-slate-600" />
                       <p className="mb-4 text-sm text-slate-500">
-                        点击生成，AI将编写完整项目代码
+                        点击生成，AI将分批编写完整项目代码
+                      </p>
+                      <p className="mb-4 text-xs text-slate-400">
+                        先规划文件结构，再分批生成代码，确保文件完整不被截断
                       </p>
                       <Button
                         onClick={handleGenerateCode}
@@ -978,13 +1062,22 @@ export default function GraduationWizard() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        AI 正在编写代码，请耐心等待...
+                        {codeBatchInfo.total > 0
+                          ? `正在生成代码（第 ${codeBatchInfo.current}/${codeBatchInfo.total} 批）...`
+                          : '正在分析项目结构...'}
                       </div>
-                      <div className="max-h-[300px] overflow-hidden rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50">
-                        <pre className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap break-all">
-                          {streamText.slice(-500)}
-                        </pre>
-                      </div>
+                      {codeStructure.length > 0 && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          共 {codeStructure.length} 个文件，分 {codeBatchInfo.total} 批生成
+                        </div>
+                      )}
+                      {streamText && (
+                        <div className="max-h-[200px] overflow-hidden rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50">
+                          <pre className="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap break-all">
+                            {streamText.slice(-500)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -992,7 +1085,7 @@ export default function GraduationWizard() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="h-4 w-4" />
-                        已生成 {codeFiles.length} 个文件
+                        已生成 {codeFiles.length}{codeStructure.length > 0 ? ` / ${codeStructure.length}` : ''} 个文件
                       </div>
                       <div className="rounded-xl border bg-slate-50 p-4 dark:bg-slate-800/50">
                         <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">

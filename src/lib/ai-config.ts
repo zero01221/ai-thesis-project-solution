@@ -31,7 +31,9 @@ export const AI_CONFIG = {
     readme: 'qwen3-vl-235b-a22b-thinking',
     /** 设计说明书生成（需要长文本输出，建议用上下文长的模型） */
     designDoc: 'qwen3-vl-235b-a22b-thinking',
-    /** 代码生成 */
+    /** 代码文件结构规划（输出量小，用轻量模型即可） */
+    codeStructure: 'qwen-plus',
+    /** 代码生成（分批生成，每批3-5个文件） */
     code: 'qwen-plus-2025-07-28',
   },
 
@@ -41,18 +43,37 @@ export const AI_CONFIG = {
     analyzeRequirements: { temperature: 0.7, max_tokens: 4096 },
     readme: { temperature: 0.5, max_tokens: 8192 },
     designDoc: { temperature: 0.5, max_tokens: 16384 },
+    codeStructure: { temperature: 0.3, max_tokens: 4096 },
     code: { temperature: 0.3, max_tokens: 16384 },
+  },
+
+  /** 代码生成分批配置 */
+  codeGeneration: {
+    /** 每批生成的文件数量（减少每批输出量，避免截断） */
+    batchSize: 4,
   },
 } as const;
 
 /**
  * 常用模型 baseURL 参考：
  *
- * | 平台         | baseURL                                              | model 值        |
- * |-------------|------------------------------------------------------|-----------------|
- * | 阿里云百炼    | https://dashscope.aliyuncs.com/compatible-mode/v1    | qwen-plus       |
- * | DeepSeek    | https://api.deepseek.com                             | deepseek-chat   |
- * | Kimi        | https://api.moonshot.cn/v1                           | moonshot-v1-128k|
- * | 豆包(火山引擎) | https://ark.cn-beijing.volces.com/api/v3             | 你的接入点ID     |
- * | OpenAI      | https://api.openai.com/v1                            | gpt-4o          |
+ * 1. DeepSeek
+ *    baseURL: 'https://api.deepseek.com'
+ *    model: 'deepseek-chat'
+ *
+ * 2. Kimi (Moonshot)
+ *    baseURL: 'https://api.moonshot.cn/v1'
+ *    model: 'moonshot-v1-128k'
+ *
+ * 3. OpenAI
+ *    baseURL: 'https://api.openai.com/v1'
+ *    model: 'gpt-4o'
+ *
+ * 4. 豆包 (火山引擎)
+ *    baseURL: 'https://ark.cn-beijing.volces.com/api/v3'
+ *    model: '你的接入点ID'
+ *
+ * 5. 阿里云百炼（当前配置）
+ *    baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+ *    model: 'qwen-plus'（或 qwen-turbo / qwen-max）
  */
