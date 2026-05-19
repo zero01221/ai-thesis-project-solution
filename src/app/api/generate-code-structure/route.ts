@@ -65,7 +65,7 @@ ${readmeTruncated}
       },
     ];
 
-    return createStreamResponse(client, messages, 'requirements');
+    return createStreamResponse(client, messages, 'codeStructure');
   } catch (error) {
     console.error('Generate code structure error:', error);
     return NextResponse.json({ error: '文件结构生成失败，请重试' }, { status: 500 });

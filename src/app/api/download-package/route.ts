@@ -186,6 +186,7 @@ function generateRunBat(title: string, analysis: ProjectAnalysis): Buffer {
 
   let batContent = `@echo off
 chcp 65001 >nul 2>&1
+setlocal enabledelayedexpansion
 title ${title || 'Graduation Project'} - 一键运行
 
 echo ========================================
@@ -193,6 +194,9 @@ echo   ${title || 'Graduation Project'}
 echo   一键配置与运行脚本
 echo ========================================
 echo.
+
+set "ROOT_DIR=%~dp0"
+cd /d "%ROOT_DIR%"
 
 `;
 
@@ -231,7 +235,6 @@ if %errorlevel% neq 0 (
     echo 请安装 Apache Maven：
     echo   https://maven.apache.org/download.cgi
     echo.
-    echo 或者使用项目自带的 Maven Wrapper (mvnw)。
     echo 安装完成后重新运行此脚本。
     pause
     exit /b 1
@@ -240,38 +243,35 @@ echo Maven 已就绪:
 mvn -version 2>&1 | findstr /i "Apache Maven"
 echo.
 
-echo [后端] 编译并启动 Spring Boot 项目...
-cd /d "%~dp0${backendPath === '.' ? '' : backendPath}"
+echo [后端] 编译 Spring Boot 项目...
+cd /d "%ROOT_DIR%${backendPath === '.' ? '' : backendPath}"
 
 :: 先尝试 Maven Wrapper
 if exist "mvnw.cmd" (
     echo 使用 Maven Wrapper 编译...
-    call mvnw.cmd clean package -DskipDependencies -q
-    if %errorlevel% equ 0 (
-        echo 编译成功！启动后端服务...
-        start "后端服务 - Spring Boot" cmd /k "mvnw.cmd spring-boot:run"
-        echo 后端服务已在新窗口启动（默认端口 8080）
-    ) else (
-        echo Maven Wrapper 编译失败，尝试系统 Maven...
-        call mvn clean package -DskipDependencies -q
-        if %errorlevel% equ 0 (
-            start "后端服务 - Spring Boot" cmd /k "mvn spring-boot:run"
-            echo 后端服务已在新窗口启动（默认端口 8080）
-        ) else (
-            echo [错误] 后端编译失败，请检查代码和依赖。
-        )
-    )
+    call mvnw.cmd clean package -DskipTests -q
 ) else (
-    call mvn clean package -DskipDependencies -q
-    if %errorlevel% equ 0 (
-        echo 编译成功！启动后端服务...
-        start "后端服务 - Spring Boot" cmd /k "mvn spring-boot:run"
-        echo 后端服务已在新窗口启动（默认端口 8080）
-    ) else (
-        echo [错误] 后端编译失败，请检查代码和依赖。
-    )
+    call mvn clean package -DskipTests -q
 )
-cd /d "%~dp0"
+
+if %errorlevel% neq 0 (
+    echo [错误] 后端编译失败，请检查代码和依赖。
+    cd /d "%ROOT_DIR%"
+    pause
+    exit /b 1
+)
+echo 编译成功！
+echo.
+
+echo [后端] 启动后端服务...
+cd /d "%ROOT_DIR%${backendPath === '.' ? '' : backendPath}"
+if exist "mvnw.cmd" (
+    start "后端服务 - Spring Boot" cmd /k "cd /d %ROOT_DIR%${backendPath === '.' ? '' : backendPath} && mvnw.cmd spring-boot:run"
+) else (
+    start "后端服务 - Spring Boot" cmd /k "cd /d %ROOT_DIR%${backendPath === '.' ? '' : backendPath} && mvn spring-boot:run"
+)
+echo 后端服务已在新窗口启动（默认端口 8080）
+cd /d "%ROOT_DIR%"
 echo.
 
 `;
@@ -302,7 +302,7 @@ python --version
 echo.
 
 echo [后端] 安装 Python 依赖...
-cd /d "%~dp0${backendPath === '.' ? '' : backendPath}"
+cd /d "%ROOT_DIR%${backendPath === '.' ? '' : backendPath}"
 pip install -r requirements.txt -q
 if %errorlevel% neq 0 (
     echo [警告] 依赖安装可能有问题，继续尝试启动...
@@ -310,9 +310,9 @@ if %errorlevel% neq 0 (
 echo.
 
 echo [后端] 启动 Python 服务...
-start "后端服务 - Python" cmd /k "python app.py"
+start "后端服务 - Python" cmd /k "cd /d %ROOT_DIR%${backendPath === '.' ? '' : backendPath} && python app.py"
 echo 后端服务已在新窗口启动
-cd /d "%~dp0"
+cd /d "%ROOT_DIR%"
 echo.
 
 `;
@@ -321,9 +321,10 @@ echo.
   // === Frontend section ===
   if (analysis.hasFrontend) {
     const frontendPath = analysis.frontendDir;
+    const feLabel = analysis.frontendTech === 'vue' ? 'Vue' : analysis.frontendTech === 'nextjs' ? 'Next.js' : analysis.frontendTech === 'react' ? 'React' : 'Node.js';
     batContent += `
 :: ==========================================
-::  前端部分 (${analysis.frontendTech === 'vue' ? 'Vue' : analysis.frontendTech === 'nextjs' ? 'Next.js' : analysis.frontendTech === 'react' ? 'React' : 'Node.js'})
+::  前端部分 (${feLabel})
 :: ==========================================
 
 echo [前端] 检查 Node.js 环境...
@@ -342,35 +343,34 @@ echo Node.js 已就绪:
 node --version
 echo.
 
-echo [前端] 检查包管理器...
-pnpm --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo pnpm 未安装，使用 npm...
-    set "FE_PKG=npm"
-) else (
-    echo pnpm 已就绪
-    set "FE_PKG=pnpm"
-)
-echo.
-
 echo [前端] 安装前端依赖...
-cd /d "%~dp0${frontendPath}"
-if "%FE_PKG%"=="pnpm" (
+cd /d "%ROOT_DIR%${frontendPath}"
+pnpm --version >nul 2>&1
+if %errorlevel% equ 0 (
+    echo 使用 pnpm 安装...
     pnpm install
 ) else (
+    echo pnpm 未安装，使用 npm...
     npm install
 )
 if %errorlevel% neq 0 (
     echo [错误] 前端依赖安装失败，请检查网络连接。
+    cd /d "%ROOT_DIR%"
     pause
     exit /b 1
 )
 echo.
 
 echo [前端] 启动前端开发服务器...
-start "前端开发服务器" cmd /k "cd /d "%~dp0${frontendPath}" && if "%FE_PKG%"=="pnpm" (pnpm dev) else (npm run dev)"
+cd /d "%ROOT_DIR%${frontendPath}"
+pnpm --version >nul 2>&1
+if %errorlevel% equ 0 (
+    start "前端开发服务器 - ${feLabel}" cmd /k "cd /d %ROOT_DIR%${frontendPath} && pnpm dev"
+) else (
+    start "前端开发服务器 - ${feLabel}" cmd /k "cd /d %ROOT_DIR%${frontendPath} && npm run dev"
+)
 echo 前端开发服务器已在新窗口启动
-cd /d "%~dp0"
+cd /d "%ROOT_DIR%"
 echo.
 
 `;
@@ -400,31 +400,31 @@ node --version
 echo.
 
 echo [2/3] 安装项目依赖...
-cd /d "%~dp0"
+cd /d "%ROOT_DIR%"
 pnpm --version >nul 2>&1
-if %errorlevel% neq 0 (
-    npm install
-    if %errorlevel% neq 0 (
-        echo [错误] 依赖安装失败。
-        pause
-        exit /b 1
-    )
-    echo 依赖安装完成。
-    echo.
-    echo [3/3] 启动项目...
-    npm run dev
-) else (
+if %errorlevel% equ 0 (
     pnpm install
-    if %errorlevel% neq 0 (
-        echo [错误] 依赖安装失败。
-        pause
-        exit /b 1
-    )
-    echo 依赖安装完成。
-    echo.
-    echo [3/3] 启动项目...
-    pnpm dev
+) else (
+    npm install
 )
+if %errorlevel% neq 0 (
+    echo [错误] 依赖安装失败。
+    pause
+    exit /b 1
+)
+echo 依赖安装完成。
+echo.
+
+echo [3/3] 启动项目...
+cd /d "%ROOT_DIR%"
+pnpm --version >nul 2>&1
+if %errorlevel% equ 0 (
+    start "开发服务器" cmd /k "cd /d %ROOT_DIR% && pnpm dev"
+) else (
+    start "开发服务器" cmd /k "cd /d %ROOT_DIR% && npm run dev"
+)
+echo 开发服务器已在新窗口启动
+echo.
 
 `;
   }
@@ -437,7 +437,7 @@ if %errorlevel% neq 0 (
 :: ==========================================
 
 echo 项目为纯 HTML 项目，正在打开 index.html...
-cd /d "%~dp0"
+cd /d "%ROOT_DIR%"
 if exist "index.html" (
     start index.html
     echo 已在浏览器中打开 index.html
@@ -471,7 +471,10 @@ echo   启动完成！
 echo ========================================
 echo.
 echo 如果浏览器没有自动打开，请手动访问对应地址。
-echo 按 Ctrl+C 可停止服务。
+echo 后端默认地址: http://localhost:8080
+echo 前端默认地址: http://localhost:5173 或 http://localhost:3000
+echo.
+echo 关闭对应的命令行窗口即可停止服务。
 echo.
 pause
 `;
@@ -506,7 +509,7 @@ function generateReadMeTxt(
   【后端 - ${backendLabel}】
   1. 进入 ${analysis.backendDir}/ 目录
   ${analysis.backendTech === 'java' ? `2. 确保已安装 JDK 17+ 和 Maven
-  3. 运行 mvn clean package -DskipDependencies 编译项目
+  3. 运行 mvn clean package -DskipTests 编译项目
   4. 运行 mvn spring-boot:run 启动后端服务（默认端口 8080）` : analysis.backendTech === 'python' ? `2. 确保已安装 Python 3.9+
   3. 运行 pip install -r requirements.txt 安装依赖
   4. 运行 python app.py 启动后端服务` : `2. 运行 pnpm install 安装依赖
@@ -527,7 +530,7 @@ function generateReadMeTxt(
     manualInstructions = `方式三：手动开发
   1. 解压项目目录
   2. 确保已安装 JDK 17+ 和 Maven
-  3. 进入项目目录，运行 mvn clean package -DskipDependencies 编译
+  3. 进入项目目录，运行 mvn clean package -DskipTests 编译
   4. 运行 mvn spring-boot:run 启动服务（默认端口 8080）
   5. 确保数据库（MySQL等）已启动并配置正确
   6. 参考 README.md 中的功能说明进行开发`;
@@ -628,7 +631,7 @@ function generateClaudeMd(title: string, analysis: ProjectAnalysis): string {
     const backendBlock = analysis.backendTech === 'java'
       ? `# 后端 (Spring Boot)
 cd ${analysis.backendDir}
-mvn clean package -DskipDependencies
+mvn clean package -DskipTests
 mvn spring-boot:run`
       : analysis.backendTech === 'python'
         ? `# 后端 (Python)
@@ -650,7 +653,7 @@ pnpm dev`;
 ${frontendBlock}`;
   } else if (analysis.type === 'java') {
     quickStart = `# 编译并运行
-mvn clean package -DskipDependencies
+mvn clean package -DskipTests
 mvn spring-boot:run`;
   } else if (analysis.type === 'python') {
     quickStart = `# 安装依赖并运行

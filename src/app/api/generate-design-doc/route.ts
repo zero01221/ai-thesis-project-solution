@@ -152,8 +152,7 @@ ${batch.chapters}`;
                 { role: 'user', content: userContent },
               ],
               stream: true,
-              temperature: AI_CONFIG.params.designDoc.temperature,
-              max_tokens: 8192,
+              ...AI_CONFIG.params.designDoc,
             });
 
             // 批次之间插入分隔标记（前端可用于显示进度）
