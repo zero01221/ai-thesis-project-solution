@@ -71,8 +71,14 @@ async function streamFetch(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: '请求失败' }));
-    throw new Error(errorData.error || '请求失败');
+    let errorMsg = '请求失败';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || errorMsg;
+    } catch {
+      // Cannot parse JSON, use default message
+    }
+    throw new Error(errorMsg);
   }
 
   const reader = response.body?.getReader();
@@ -81,12 +87,33 @@ async function streamFetch(
   const decoder = new TextDecoder();
   let fullText = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    fullText += chunk;
-    onChunk(fullText);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      fullText += chunk;
+      onChunk(fullText);
+    }
+  } catch {
+    // Stream may have been interrupted - check if we got enough data
+    if (fullText.length === 0) {
+      throw new Error('AI连接中断，请重试');
+    }
+    // Otherwise, return what we have
+  }
+
+  // Check for AI error marker embedded in the stream
+  if (fullText.includes('[AI_ERROR]')) {
+    const errorMatch = fullText.match(/\[AI_ERROR\]\s*(.*)/);
+    const aiError = errorMatch ? errorMatch[1].trim() : 'AI调用失败';
+    // Clean the error marker from text
+    const cleanText = fullText.replace(/\n?\[AI_ERROR\].*/, '').trim();
+    if (cleanText.length === 0) {
+      throw new Error(aiError);
+    }
+    // If we got partial content before error, return it but warn
+    console.warn('AI stream had error after partial output:', aiError);
   }
 
   return fullText;
