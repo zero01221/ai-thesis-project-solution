@@ -1,13 +1,20 @@
 import type { Metadata } from 'next';
+import { Inspector } from 'react-dev-inspector';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '招标信息监控 | 云南省铁塔行业',
-  description: '云南省铁塔制造及维修行业招标信息自动采集与推送工具',
-  keywords: ['招标信息', '铁塔', '云南省', '招投标', '监控'],
+  title: '毕业设计 AI 助手 | 从需求到代码',
+  description: '输入毕业论文题目，AI自动生成需求、README文档和完整项目代码，一键下载可运行压缩包',
+  keywords: [
+    '毕业设计',
+    '毕业论文',
+    'AI代码生成',
+    '需求分析',
+    'README生成',
+  ],
   robots: {
-    index: false,
-    follow: false,
+    index: true,
+    follow: true,
   },
 };
 
@@ -16,9 +23,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isDev = process.env.COZE_PROJECT_ENV === 'DEV';
+
   return (
     <html lang="zh-CN">
-      <body className="antialiased">
+      <body className={`antialiased`}>
+        {isDev && <Inspector />}
         {children}
       </body>
     </html>
