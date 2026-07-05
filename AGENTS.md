@@ -1,99 +1,71 @@
-# 毕业设计 AI 助手 - 项目上下文
+# 招标信息监控系统 - 项目上下文
 
 ## 项目概述
 
-毕业设计 AI 助手是一个基于 Next.js 的全栈 Web 应用，帮助用户从毕业论文题目出发，通过 AI 自动生成需求、README 文档、设计说明书和完整项目代码，并打包下载。
+云南省铁塔制造及维修行业招标信息自动采集与推送工具。支持多站点爬取、关键词过滤、去重和钉钉通知。
 
-核心流程：论文题目/需求输入 → 需求确认编辑 → README 文档生成 → 设计说明书生成 → 代码生成与下载
-
-### 版本技术栈
+## 技术栈
 
 - **Framework**: Next.js 16 (App Router)
 - **Core**: React 19
 - **Language**: TypeScript 5
-- **UI 组件**: shadcn/ui (基于 Radix UI)
-- **Styling**: Tailwind CSS 4 + @tailwindcss/typography
-- **AI SDK**: coze-coding-dev-sdk (LLM 集成)
-- **ZIP 打包**: jszip
-- **Markdown 渲染**: react-markdown + remark-gfm
+- **UI**: shadcn/ui + Tailwind CSS 4
+- **HTML解析**: cheerio
+- **通知**: 钉钉机器人 Webhook
 
 ## 目录结构
 
 ```
-├── public/                     # 静态资源
-├── scripts/                    # 构建与启动脚本
+├── data/                           # 运行时数据（配置、历史记录）
+│   ├── config.json                 # 用户配置（站点、关键词、通知）
+│   └── history.json                # 去重指纹 + 历史记录
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # 根布局
-│   │   ├── page.tsx            # 首页（导入 GraduationWizard）
-│   │   ├── globals.css         # 全局样式 + Tailwind 配置
+│   │   ├── layout.tsx              # 根布局
+│   │   ├── page.tsx                # 首页（渲染 BiddingDashboard）
 │   │   └── api/
-│   │       ├── generate-requirements/  # [POST] 根据论文题目生成需求
-│   │       ├── analyze-requirements/   # [POST] 分析手动输入的需求
-│   │       ├── generate-readme/        # [POST] 生成 README.md
-│   │       ├── generate-design-doc/    # [POST] 生成设计说明书（1.8-2万字）
-│   │       ├── generate-code/          # [POST] 生成项目代码
-│   │       └── download-package/       # [POST] 打包为 ZIP 下载
+│   │       ├── scrape/route.ts     # [POST] 触发采集
+│   │       ├── config/route.ts     # [GET/POST] 配置管理
+│   │       ├── notify/route.ts     # [POST] 钉钉通知（测试/推送）
+│   │       └── history/route.ts    # [GET] 历史记录查询
 │   ├── components/
-│   │   ├── graduation-wizard.tsx  # 核心：5步向导组件（客户端）
-│   │   └── ui/                    # shadcn/ui 组件库
-│   ├── hooks/
-│   ├── lib/
-│   │   └── utils.ts
-│   └── server.ts
-├── next.config.ts
-├── package.json
-└── tsconfig.json
+│   │   ├── bidding-dashboard.tsx   # 核心：Dashboard 客户端组件
+│   │   └── ui/                    # shadcn/ui 组件
+│   └── lib/bidding/
+│       ├── types.ts               # 类型定义
+│       ├── default-config.ts      # 默认配置（站点、关键词）
+│       ├── scraper.ts             # 爬虫引擎 + 站点适配器
+│       ├── filter.ts              # 关键词过滤器
+│       ├── dedup.ts               # 去重模块（MD5指纹）
+│       ├── dingtalk.ts            # 钉钉通知模块
+│       └── engine.ts              # 统一调度引擎
 ```
 
-## 核心组件说明
+## 核心模块说明
 
-### graduation-wizard.tsx
+### 爬虫引擎 (scraper.ts)
+- 每个目标网站一个 Adapter 类（CcgpAdapter, YunnanGgzyAdapter 等）
+- 支持 HTML 解析（cheerio）和 JSON API 两种模式
+- 内置请求间隔（1.5s）防止被封
 
-5 步向导式交互组件，管理全部状态和 AI 调用：
+### 过滤与去重
+- `filter.ts`: include/exclude 关键词匹配
+- `dedup.ts`: 基于 URL+标题+日期 的 MD5 指纹去重，持久化到 data/history.json
 
-- **Step 1 - 需求输入**: 两种模式（智能生成/手动输入），调用 LLM 流式输出
-- **Step 2 - 需求确认**: 可编辑/删除/新增需求的列表
-- **Step 3 - 生成README**: 调用 LLM 生成 Markdown 文档，实时渲染预览
-- **Step 4 - 设计说明书**: 调用 LLM 生成 1.8-2 万字设计说明书初稿，实时渲染预览
-- **Step 5 - 代码生成**: 调用 LLM 生成多文件代码，文件树预览 + ZIP 下载
+### 钉钉通知 (dingtalk.ts)
+- 支持加签验证
+- Markdown 格式推送招标信息汇总
+- 测试消息功能
 
-### API 路由
+## API 接口
 
-所有 AI 接口使用 SSE 流式输出（`text/event-stream`），通过 `coze-coding-dev-sdk` 的 `LLMClient.stream()` 实现：
+| 路由 | 方法 | 功能 |
+|------|------|------|
+| `/api/scrape` | POST | 触发采集，body: `{ siteIds?, daysBack?, skipNotify? }` |
+| `/api/config` | GET/POST | 读取/更新配置 |
+| `/api/notify` | POST | 钉钉通知，body: `{ action: 'test'|'push', items? }` |
+| `/api/history` | GET | 查询历史，query: `?limit=50&offset=0` |
 
-| 路由 | 方法 | 功能 | 请求体 |
-|------|------|------|--------|
-| `/api/generate-requirements` | POST | 根据论文题目生成需求 JSON | `{ title }` |
-| `/api/analyze-requirements` | POST | 分析手动需求返回结构化 JSON | `{ requirements }` |
-| `/api/generate-readme` | POST | 生成 README.md Markdown | `{ title, requirements[] }` |
-| `/api/generate-design-doc` | POST | 生成 1.8-2 万字设计说明书 | `{ title, requirements[], readme? }` |
-| `/api/generate-code` | POST | 生成代码文件 JSON 数组 | `{ readme, title }` |
-| `/api/download-package` | POST | 返回 ZIP 文件 | `{ files[], title, designDoc?, readme? }` |
+## 包管理
 
-### ZIP 打包内容
-
-下载的 ZIP 包含以下文件：
-- 项目源代码（AI 生成的所有文件）
-- `README.md` - 项目技术文档
-- `设计说明书.md` - 毕业设计说明书初稿
-- `CLAUDE.md` - Claude Code 权限配置文件
-- `先看我.txt` - 项目说明文件（含结构、用途，尾端标注"设计说明书仅供参考"）
-
-## 包管理规范
-
-**仅允许使用 pnpm**，严禁 npm 或 yarn。
-
-## 开发规范
-
-- TypeScript strict 模式
-- 禁止隐式 any
-- 所有 API 路由的 LLM 调用使用 `HeaderUtils.extractForwardHeaders` 转发请求头
-- 前端流式读取使用 `fetch` + `body.getReader()`
-- 客户端组件使用 `'use client'` 指令
-
-## 常见问题与修复
-
-- **archiver 导入问题**: archiver 是 CJS 模块，在 Next.js ESM 环境下默认导入不兼容，已替换为 jszip
-- **Response 构造类型问题**: `Buffer`/`Uint8Array` 不能直接作为 `BodyInit`，需类型断言
-- **LLM 返回格式解析**: AI 可能返回带 markdown 代码块的 JSON，`parseRequirements`/`parseCodeFiles` 已做兼容处理
+仅使用 pnpm。
