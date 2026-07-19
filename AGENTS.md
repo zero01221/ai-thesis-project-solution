@@ -30,10 +30,12 @@
 │   │   └── api/
 │   │       ├── generate-requirements/  # [POST] 根据论文题目生成需求
 │   │       ├── analyze-requirements/   # [POST] 分析手动输入的需求
+│   │       ├── detect-project-type/    # [POST] 识别项目类型（技术栈、架构模式）
 │   │       ├── generate-readme/        # [POST] 生成 README.md
 │   │       ├── generate-design-doc/    # [POST] 生成设计说明书（1.8-2万字）
-│   │       ├── generate-code/          # [POST] 生成项目代码
-│   │       └── download-package/       # [POST] 打包为 ZIP 下载
+│   │       ├── generate-code-structure/# [POST] 规划项目文件结构（基于项目类型）
+│   │       ├── generate-code/          # [POST] 分批生成项目代码
+│   │       └── download-package/       # [POST] 打包为 ZIP 下载（含跨平台运行脚本）
 │   ├── components/
 │   │   ├── graduation-wizard.tsx  # 核心：5步向导组件（客户端）
 │   │   └── ui/                    # shadcn/ui 组件库

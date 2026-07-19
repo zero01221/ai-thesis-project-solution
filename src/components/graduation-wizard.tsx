@@ -49,6 +49,28 @@ interface CodeStructureItem {
   description: string;
 }
 
+interface ProjectTypeInfo {
+  type: string;
+  label: string;
+  backend: {
+    tech: string;
+    language: string;
+    port: number;
+  };
+  frontend: {
+    tech: string;
+    framework: string;
+    buildTool: string;
+    port: number;
+  };
+  needsDatabase: boolean;
+  database: string;
+  needsCache: boolean;
+  structureMode: string;
+  packageManager: string;
+  keyDependencies: string[];
+}
+
 type Step = 1 | 2 | 3 | 4 | 5;
 
 const STEPS = [
@@ -267,6 +289,7 @@ export default function GraduationWizard() {
   const [codeFiles, setCodeFiles] = useState<CodeFile[]>([]);
   const [codeStructure, setCodeStructure] = useState<CodeStructureItem[]>([]);
   const [codeBatchInfo, setCodeBatchInfo] = useState({ current: 0, total: 0 });
+  const [projectType, setProjectType] = useState<ProjectTypeInfo | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamText, setStreamText] = useState('');
   const [editingReq, setEditingReq] = useState<number | null>(null);
@@ -336,6 +359,25 @@ export default function GraduationWizard() {
       );
 
       setReadmeContent(fullText);
+
+      // 自动识别项目类型
+      try {
+        const typeResponse = await fetch('/api/detect-project-type', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            readme: fullText,
+            title: title.trim() || '毕业设计项目',
+            requirements,
+          }),
+        });
+        if (typeResponse.ok) {
+          const typeInfo = await typeResponse.json();
+          setProjectType(typeInfo);
+        }
+      } catch (typeErr) {
+        console.warn('项目类型识别失败，将在代码生成时自动推断:', typeErr);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'README生成失败';
       alert(message);
@@ -402,7 +444,11 @@ export default function GraduationWizard() {
       setStreamText('正在分析项目结构，规划文件清单...');
       const structureText = await streamFetch(
         '/api/generate-code-structure',
-        { readme: readmeContent, title: title.trim() || 'graduation-project' },
+        {
+          readme: readmeContent,
+          title: title.trim() || 'graduation-project',
+          projectType: projectType || undefined,
+        },
         (text) => {
           setStreamText(text);
         },
@@ -434,6 +480,7 @@ export default function GraduationWizard() {
             title: title.trim() || 'graduation-project',
             batchIndex: i,
             totalBatches,
+            projectType: projectType || undefined,
           },
           (text) => {
             setStreamText(text);
@@ -483,6 +530,7 @@ export default function GraduationWizard() {
           title: title.trim() || 'graduation-project',
           designDoc: designDocContent,
           readme: readmeContent,
+          projectType: projectType || undefined,
         }),
       });
 
@@ -1064,6 +1112,11 @@ export default function GraduationWizard() {
                   </CardTitle>
                   <CardDescription>
                     AI 根据 README 文档自动生成完整可运行的项目代码
+                    {projectType && (
+                      <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+                        {projectType.label}
+                      </span>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
