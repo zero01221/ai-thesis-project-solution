@@ -1,10 +1,23 @@
 [project]
+sub_id = "88f32702"
+name = "graduation-ai-assistant"
 requires = ["nodejs-24"]
+project_type = "web"
+
+[preview]
+preview_enable = "enabled"
 
 [dev]
-build = ["pnpm", "install"]
-run = ["pnpm", "run", "dev"]
+build = ["bash", "scripts/coze-preview-build.sh"]
+run = ["bash", "scripts/coze-preview-run.sh"]
 
 [deploy]
-build = ["pnpm", "run", "build"]
-run = ["pnpm", "run", "start"]
+build = ["bash", "scripts/build.sh"]
+run = ["bash", "scripts/start.sh"]
+
+[deploy.profile]
+kind = "service"
+flavor = "web"
+
+[subprojects]
+path = ["."]

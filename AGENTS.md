@@ -97,3 +97,29 @@
 - **archiver 导入问题**: archiver 是 CJS 模块，在 Next.js ESM 环境下默认导入不兼容，已替换为 jszip
 - **Response 构造类型问题**: `Buffer`/`Uint8Array` 不能直接作为 `BodyInit`，需类型断言
 - **LLM 返回格式解析**: AI 可能返回带 markdown 代码块的 JSON，`parseRequirements`/`parseCodeFiles` 已做兼容处理
+
+## 预览与部署配置
+
+### 预览链路
+
+- **项目类型**: Web（Next.js 16 自定义服务器）
+- **预览入口**: `src/server.ts`（通过 `pnpm tsx watch` 启动）
+- **预览脚本**:
+  - `scripts/coze-preview-build.sh` — 安装依赖
+  - `scripts/coze-preview-run.sh` — 清理 5000 端口，启动 Next.js 开发服务器
+- **端口**: 固定 5000，绑定 `0.0.0.0`
+- **`.coze` 映射**: 技术项目与工作区根目录重合（`path = "."`），根 `.coze` 同时承担子项目 `.coze` 职责
+
+### 部署链路
+
+- **部署脚本**:
+  - `scripts/build.sh` — 安装依赖 → `next build` → `tsup` 打包 `src/server.ts` 为 `dist/server.js`
+  - `scripts/start.sh` — `node dist/server.js`，端口 5000
+- **部署 profile**: `kind = "service"`, `flavor = "web"`
+- **运行时**: `nodejs-24`
+
+### 注意事项
+
+- 所有脚本已修正为基于 `SCRIPT_DIR` 定位项目根目录，不依赖 `COZE_WORKSPACE_PATH` 或 `$(pwd)`
+- 部署构建产物为 `dist/server.js`（CJS 格式，由 tsup 打包）
+- 自定义服务器通过 `process.env.COZE_PROJECT_ENV` 区分开发/生产模式
