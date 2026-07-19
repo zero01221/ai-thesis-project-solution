@@ -42,8 +42,15 @@ export function createStreamResponse(
         if (error instanceof Error && error.message.includes('ERR_INVALID_STATE')) {
           try { controller.close(); } catch { /* already closed */ }
         } else {
-          console.error(`AI stream error (${scenario}):`, error);
-          try { controller.error(error); } catch { /* already closed */ }
+          // Try to send error info to client as text before closing
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error(`AI stream error (${scenario}):`, errorMsg);
+          try {
+            controller.enqueue(encoder.encode(`\n\n[AI_ERROR] ${errorMsg}`));
+            controller.close();
+          } catch {
+            try { controller.error(error); } catch { /* already closed */ }
+          }
         }
       }
     },

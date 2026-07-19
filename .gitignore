@@ -98,3 +98,8 @@ Desktop.ini
 .turbo
 
 .coze-logs
+.cozeproj/reduction
+
+# Preview files
+.preview
+.codegraph
