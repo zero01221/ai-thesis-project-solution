@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "bash ./scripts/build.sh",
-    "dev": "bash ./scripts/dev.sh",
+    "build": "node scripts/build.js",
+    "dev": "cross-env PORT=5000 tsx watch src/server.ts",
     "preinstall": "npx only-allow pnpm",
     "lint": "eslint",
     "lint:build": "eslint . --quiet",
-    "start": "bash ./scripts/start.sh",
+    "start": "cross-env PORT=5000 node dist/server.js",
     "ts-check": "tsc -p tsconfig.json",
-    "validate": "pnpm run --parallel '/^(ts-check|lint:build)$/'"
+    "validate": "pnpm run --parallel \"/^(ts-check|lint:build)$/\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
@@ -84,6 +84,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "only-allow": "^1.2.2",
