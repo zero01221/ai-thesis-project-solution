@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build.js",
-    "dev": "cross-env PORT=5000 tsx watch src/server.ts",
+    "dev": "npx cross-env PORT=5000 tsx watch src/server.ts",
     "preinstall": "npx only-allow pnpm",
     "lint": "eslint",
     "lint:build": "eslint . --quiet",
-    "start": "cross-env PORT=5000 node dist/server.js",
+    "start": "npx cross-env PORT=5000 node dist/server.js",
     "ts-check": "tsc -p tsconfig.json",
     "validate": "pnpm run --parallel \"/^(ts-check|lint:build)$/\""
   },
