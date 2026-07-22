@@ -3,7 +3,9 @@ import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, requirements, batch = 1 } = await request.json();
+    const { title, requirements } = await request.json();
+    // batch 从 URL 查询参数获取
+    const batch = parseInt(request.nextUrl.searchParams.get('batch') || '1');
 
     if (!title || !requirements || !Array.isArray(requirements) || requirements.length === 0) {
       return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
