@@ -336,16 +336,19 @@ export default function GraduationWizard() {
     }
   }, [inputMode, title, manualRequirements]);
 
-  // Step 3: Generate README
+  // Step 3: Generate README (分批生成)
+  const [readmeBatch, setReadmeBatch] = useState(0);
   const handleGenerateReadme = useCallback(async () => {
     if (requirements.length === 0) return;
 
     setIsGenerating(true);
+    setReadmeBatch(1);
     setStreamText('');
 
     try {
-      const fullText = await streamFetch(
-        '/api/generate-readme',
+      // Batch 1: 项目概述 + 技术栈 + 项目结构 + 功能模块
+      const batch1Text = await streamFetch(
+        '/api/generate-readme?batch=1',
         { title: title.trim() || '毕业设计项目', requirements },
         (text) => {
           setStreamText(text);
@@ -358,6 +361,24 @@ export default function GraduationWizard() {
         },
       );
 
+      setReadmeBatch(2);
+
+      // Batch 2: 数据库设计 + API 接口 + 页面设计 + 开发规范 + 部署方案
+      const batch2Text = await streamFetch(
+        '/api/generate-readme?batch=2',
+        { title: title.trim() || '毕业设计项目', requirements },
+        (text) => {
+          setStreamText(batch1Text + text);
+          setTimeout(() => {
+            readmeScrollRef.current?.scrollTo({
+              top: readmeScrollRef.current.scrollHeight,
+              behavior: 'smooth',
+            });
+          }, 100);
+        },
+      );
+
+      const fullText = batch1Text + batch2Text;
       setReadmeContent(fullText);
 
       // 自动识别项目类型
@@ -982,7 +1003,7 @@ export default function GraduationWizard() {
               {isGenerating && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  AI 正在生成 README 文档...
+                  AI 正在分批生成 README 文档（第{readmeBatch}/2批），请耐心等待...
                 </div>
               )}
 
