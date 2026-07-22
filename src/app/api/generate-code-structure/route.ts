@@ -161,65 +161,37 @@ export async function POST(request: NextRequest) {
     const messages = [
       {
         role: 'system' as const,
-        content: `你是一位顶级全栈架构师。你需要根据README.md文档的描述和项目类型信息，规划完整的项目文件结构。
+        content: `你是一个文件清单生成器。你的唯一任务是输出一个JSON数组。
 
-你的输出必须是一个JSON数组，包含所有项目文件的路径和简要说明。不要输出文件内容，只输出路径和说明。
+【输出格式】
+严格输出JSON数组，格式如下：
+[{"path":"文件路径","description":"文件说明"},{"path":"文件路径2","description":"文件说明2"}]
 
-格式如下：
-[
-  {
-    "path": "文件相对路径",
-    "description": "该文件的简要说明（一句话）"
-  }
-]
+【规则】
+1. 只输出JSON数组，不要输出任何其他文字
+2. 不要使用markdown代码块标记
+3. 不要输出解释说明
+4. 每个文件必须有path和description字段
+5. path必须是相对路径，使用正斜杠/
 
-关键要求：
-1. 列出所有需要生成的文件，包括配置文件、源代码、资源文件等
-2. 文件路径必须符合该技术栈的标准目录结构
-3. 绝对不要遗漏任何必要的文件！特别是入口文件和配置文件
-4. 根据项目技术栈决定需要哪些配置文件
-${typeConstraints}
+【必须包含的文件类型】
+- 入口文件（如main.ts、App.vue、index.html、Application.java等）
+- 配置文件（如package.json、pom.xml、vite.config.ts、tsconfig.json等）
+- 路由配置
+- 状态管理
+- 所有页面组件
+- 所有API接口文件
 
-【致命错误检查 - 以下文件缺失将导致项目完全无法运行】
-A. 入口文件（缺少则项目无法启动）：
-   - Vue项目：src/main.ts（Vue挂载入口）、src/App.vue（根组件）、index.html（HTML模板）
-   - React项目：src/main.tsx（ReactDOM渲染入口）、src/App.tsx（根组件）、index.html
-   - Next.js项目：src/app/layout.tsx、src/app/page.tsx
-   - Spring Boot项目：XxxApplication.java（启动类，含@SpringBootApplication）
-   - Python项目：app.py 或 manage.py
-   - 纯HTML项目：index.html
-
-B. 配置文件（缺少则依赖无法安装或构建失败）：
-   - package.json（必须包含正确的dependencies和scripts.dev/scripts.build）
-   - pom.xml（Java Maven项目）
-   - requirements.txt（Python项目）
-   - vite.config.ts / webpack.config.js / next.config.js
-   - tsconfig.json（TypeScript项目）
-   - application.yml / application.properties（Spring Boot）
-
-C. 路由和状态管理：
-   - src/router/index.ts（前端路由）
-   - src/stores/index.ts（状态管理）
-
-请仔细检查，确保以上所有文件都在列表中！
-
-【输出格式要求】
-- 直接输出JSON数组，不要加 \`\`\`json \`\`\` 标记
-- 不要在JSON前后添加任何说明文字`,
+${typeConstraints}`,
       },
       {
         role: 'user' as const,
-        content: `请根据以下信息，列出所有需要生成的项目文件。
-
-## 项目名称
-${title}
+        content: `项目：${title}
 ${projectTypeDesc}
-## README.md 内容
+README摘要：
 ${readmeTruncated}
 
-请列出所有项目文件的路径和简要说明，以JSON数组格式输出。
-务必包含入口文件、配置文件、路由配置、状态管理等所有必要文件。
-遗漏入口文件或配置文件将导致项目完全无法运行！`,
+输出JSON数组：`,
       },
     ];
 

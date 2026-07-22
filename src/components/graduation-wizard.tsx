@@ -181,37 +181,85 @@ function parseRequirements(text: string): Requirement[] {
 // Parse code file structure (path + description) from AI response
 function parseCodeStructure(text: string): CodeStructureItem[] {
   let cleaned = text.trim();
+  
+  // Remove common AI prefixes/suffixes
+  cleaned = cleaned.replace(/^(好的|以下是|根据.*分析|根据.*规划|项目文件结构如下|文件清单如下)[\s\S]*?\n/i, '');
+  cleaned = cleaned.replace(/\n(以上就是|总共|共计|希望|请注意)[\s\S]*$/i, '');
+  
+  // Remove markdown code block markers
   cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
   cleaned = cleaned.trim();
 
+  // Strategy 1: Try direct JSON parse
   try {
     const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item: Record<string, unknown>) => item.path)
+      const result = parsed
+        .filter((item: Record<string, unknown>) => item && typeof item === 'object' && item.path)
         .map((item: Record<string, unknown>) => ({
-          path: item.path as string,
-          description: (item.description as string) || '',
-        }));
+          path: String(item.path).trim(),
+          description: String(item.description || '').trim(),
+        }))
+        .filter((item: CodeStructureItem) => item.path.length > 0);
+      if (result.length > 0) return result;
     }
   } catch {
-    const match = cleaned.match(/\[[\s\S]*\]/);
-    if (match) {
-      try {
-        const parsed = JSON.parse(match[0]);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .filter((item: Record<string, unknown>) => item.path)
-            .map((item: Record<string, unknown>) => ({
-              path: item.path as string,
-              description: (item.description as string) || '',
-            }));
-        }
-      } catch {
-        // Fall through
+    // Fall through to next strategy
+  }
+
+  // Strategy 2: Extract JSON array from text
+  const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed)) {
+        const result = parsed
+          .filter((item: Record<string, unknown>) => item && typeof item === 'object' && item.path)
+          .map((item: Record<string, unknown>) => ({
+            path: String(item.path).trim(),
+            description: String(item.description || '').trim(),
+          }))
+          .filter((item: CodeStructureItem) => item.path.length > 0);
+        if (result.length > 0) return result;
       }
+    } catch {
+      // Fall through to next strategy
     }
   }
+
+  // Strategy 3: Try to fix common JSON issues (trailing commas, unquoted keys)
+  try {
+    let fixed = cleaned.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+    fixed = fixed.replace(/(\{|,)\s*(\w+)\s*:/g, '$1"$2":'); // Quote unquoted keys
+    const parsed = JSON.parse(fixed);
+    if (Array.isArray(parsed)) {
+      const result = parsed
+        .filter((item: Record<string, unknown>) => item && typeof item === 'object' && item.path)
+        .map((item: Record<string, unknown>) => ({
+          path: String(item.path).trim(),
+          description: String(item.description || '').trim(),
+        }))
+        .filter((item: CodeStructureItem) => item.path.length > 0);
+      if (result.length > 0) return result;
+    }
+  } catch {
+    // Fall through to next strategy
+  }
+
+  // Strategy 4: Extract file paths from text (fallback)
+  // Look for patterns like "path/to/file" or - path/to/file
+  const pathPattern = /(?:^|\n)\s*[-*]?\s*["`]?([a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)["`]?\s*(?:[-:：]\s*(.+))?/gm;
+  const results: CodeStructureItem[] = [];
+  let match;
+  while ((match = pathPattern.exec(cleaned)) !== null) {
+    const path = match[1].trim();
+    const desc = match[2]?.trim() || '';
+    // Filter out non-file paths
+    if (path && !path.includes(' ') && path.includes('.') && !path.startsWith('http')) {
+      results.push({ path, description: desc });
+    }
+  }
+  if (results.length > 0) return results;
 
   return [];
 }
@@ -336,7 +384,7 @@ export default function GraduationWizard() {
     }
   }, [inputMode, title, manualRequirements]);
 
-  // Step 3: Generate README (分批生成)
+  // Step 3: Generate README (分3批生成)
   const [readmeBatch, setReadmeBatch] = useState(0);
   const handleGenerateReadme = useCallback(async () => {
     if (requirements.length === 0) return;
@@ -346,7 +394,7 @@ export default function GraduationWizard() {
     setStreamText('');
 
     try {
-      // Batch 1: 项目概述 + 技术栈 + 项目结构 + 功能模块
+      // Batch 1: 项目概述 + 技术栈 + 项目结构
       const batch1Text = await streamFetch(
         '/api/generate-readme?batch=1',
         { title: title.trim() || '毕业设计项目', requirements },
@@ -363,12 +411,12 @@ export default function GraduationWizard() {
 
       setReadmeBatch(2);
 
-      // Batch 2: 数据库设计 + API 接口 + 页面设计 + 开发规范 + 部署方案
+      // Batch 2: 功能模块 + 数据库设计 + API接口设计
       const batch2Text = await streamFetch(
         '/api/generate-readme?batch=2',
         { title: title.trim() || '毕业设计项目', requirements },
         (text) => {
-          setStreamText(batch1Text + text);
+          setStreamText(batch1Text + '\n' + text);
           setTimeout(() => {
             readmeScrollRef.current?.scrollTo({
               top: readmeScrollRef.current.scrollHeight,
@@ -378,7 +426,24 @@ export default function GraduationWizard() {
         },
       );
 
-      const fullText = batch1Text + batch2Text;
+      setReadmeBatch(3);
+
+      // Batch 3: 页面设计 + 开发规范 + 部署方案
+      const batch3Text = await streamFetch(
+        '/api/generate-readme?batch=3',
+        { title: title.trim() || '毕业设计项目', requirements },
+        (text) => {
+          setStreamText(batch1Text + '\n' + batch2Text + '\n' + text);
+          setTimeout(() => {
+            readmeScrollRef.current?.scrollTo({
+              top: readmeScrollRef.current.scrollHeight,
+              behavior: 'smooth',
+            });
+          }, 100);
+        },
+      );
+
+      const fullText = batch1Text + '\n' + batch2Text + '\n' + batch3Text;
       setReadmeContent(fullText);
 
       // 自动识别项目类型
@@ -1003,7 +1068,7 @@ export default function GraduationWizard() {
               {isGenerating && (
                 <div className="mb-4 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  AI 正在分批生成 README 文档（第{readmeBatch}/2批），请耐心等待...
+                  AI 正在分批生成 README 文档（第{readmeBatch}/3批），请耐心等待...
                 </div>
               )}
 
