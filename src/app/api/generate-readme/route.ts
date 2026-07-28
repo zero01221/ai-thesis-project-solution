@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { GenerateReadmeSchema, validateRequest } from '@/lib/api-validation';
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, requirements, batch = 1 } = await request.json();
-
-    if (!title || !requirements || !Array.isArray(requirements) || requirements.length === 0) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
-    }
+    const data = await request.json();
+    const { title, requirements, batch = 1 } = validateRequest(GenerateReadmeSchema, data);
 
     const client = createOpenAIClient();
 
@@ -135,6 +133,6 @@ ${requirementsText}
     return createStreamResponse(client, messages, 'readme');
   } catch (error) {
     console.error('Generate readme error:', error);
-    return NextResponse.json({ error: 'README生成失败，请重试' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'README生成失败，请重试' }, { status: 500 });
   }
 }

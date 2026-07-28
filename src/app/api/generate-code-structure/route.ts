@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { GenerateCodeStructureSchema, validateRequest } from '@/lib/api-validation';
 
 /**
  * 代码生成 - 第1步：生成文件清单
@@ -8,18 +9,8 @@ import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
  * 结合项目类型信息，确保文件清单完整且符合技术栈规范
  */
 
-interface ProjectTypeInput {
-  type: string;
-  label: string;
-  backend: { tech: string; language: string; port: number };
-  frontend: { tech: string; framework: string; buildTool: string; port: number };
-  needsDatabase: boolean;
-  database: string;
-  needsCache: boolean;
-  structureMode: string;
-  packageManager: string;
-  keyDependencies: string[];
-}
+import type { ProjectTypeInput } from '@/types/project';
+import { getTypeConstraints } from '@/lib/project-type-registry';
 
 /**
  * 根据项目类型生成必须包含的文件清单约束
@@ -136,15 +127,8 @@ function getTypeConstraints(projectType: ProjectTypeInput | null): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { readme, title, projectType } = await request.json() as {
-      readme?: string;
-      title?: string;
-      projectType?: ProjectTypeInput;
-    };
-
-    if (!readme || typeof readme !== 'string' || readme.trim().length === 0) {
-      return NextResponse.json({ error: '缺少README文档内容' }, { status: 400 });
-    }
+    const data = await request.json();
+    const { readme, title, projectType } = validateRequest(GenerateCodeStructureSchema, data);
 
     const client = createOpenAIClient();
 
@@ -198,6 +182,6 @@ ${readmeTruncated}
     return createStreamResponse(client, messages, 'codeStructure');
   } catch (error) {
     console.error('Generate code structure error:', error);
-    return NextResponse.json({ error: '文件结构生成失败，请重试' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : '文件结构生成失败，请重试' }, { status: 500 });
   }
 }

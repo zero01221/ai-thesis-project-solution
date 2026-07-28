@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient } from '@/lib/ai-client';
 import { AI_CONFIG } from '@/lib/ai-config';
+import { GenerateDesignDocSchema, validateRequest } from '@/lib/api-validation';
 
 /**
  * 设计说明书 - 分章生成
@@ -76,11 +77,8 @@ const BATCHES = [
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, requirements, readme } = await request.json();
-
-    if (!title || !requirements || !Array.isArray(requirements) || requirements.length === 0) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
-    }
+    const data = await request.json();
+    const { title, requirements, readme } = validateRequest(GenerateDesignDocSchema, data);
 
     const client = createOpenAIClient();
 
@@ -190,6 +188,6 @@ ${batch.chapters}`;
     });
   } catch (error) {
     console.error('Generate design doc error:', error);
-    return NextResponse.json({ error: '设计说明书生成失败，请重试' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : '设计说明书生成失败，请重试' }, { status: 500 });
   }
 }

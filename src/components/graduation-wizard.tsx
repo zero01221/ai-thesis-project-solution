@@ -32,44 +32,13 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-interface Requirement {
-  id: number;
-  name: string;
-  description: string;
-}
-
-interface CodeFile {
-  path: string;
-  content: string;
-}
-
-interface CodeStructureItem {
-  path: string;
-  description: string;
-}
-
-interface ProjectTypeInfo {
-  type: string;
-  label: string;
-  backend: {
-    tech: string;
-    language: string;
-    port: number;
-  };
-  frontend: {
-    tech: string;
-    framework: string;
-    buildTool: string;
-    port: number;
-  };
-  needsDatabase: boolean;
-  database: string;
-  needsCache: boolean;
-  structureMode: string;
-  packageManager: string;
-  keyDependencies: string[];
-}
+import {
+  Requirement,
+  CodeFile,
+  CodeStructureItem,
+  ProjectTypeInfo,
+  FileStructure,
+} from '@/types/project';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -81,7 +50,7 @@ const STEPS = [
   { number: 5, label: '代码生成', icon: Code2 },
 ];
 
-// Streaming fetch helper
+// Streaming fetch helper using new stream utils
 async function streamFetch(
   url: string,
   body: Record<string, unknown>,

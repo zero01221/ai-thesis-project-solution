@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { AnalyzeRequirementsSchema, validateRequest } from '@/lib/api-validation';
 
 export async function POST(request: NextRequest) {
   try {
-    const { requirements } = await request.json();
-
-    if (!requirements || typeof requirements !== 'string' || requirements.trim().length === 0) {
-      return NextResponse.json({ error: '请输入需求内容' }, { status: 400 });
-    }
+    const data = await request.json();
+    const { requirements } = validateRequest(AnalyzeRequirementsSchema, data);
 
     const client = createOpenAIClient();
 
@@ -48,6 +46,6 @@ ${requirements.trim()}
     return createStreamResponse(client, messages, 'analyzeRequirements');
   } catch (error) {
     console.error('Analyze requirements error:', error);
-    return NextResponse.json({ error: '需求分析失败，请重试' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : '需求分析失败，请重试' }, { status: 500 });
   }
 }

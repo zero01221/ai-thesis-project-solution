@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient } from '@/lib/ai-client';
 import { AI_CONFIG } from '@/lib/ai-config';
+import { cleanAiJson, extractJsonObject } from '@/lib/ai-json';
+import type { ProjectTypeInfo } from '@/types/project';
+import { DetectProjectTypeSchema, validateRequest } from '@/lib/api-validation';
 
 /**
  * 项目类型识别 API
@@ -14,49 +17,10 @@ import { AI_CONFIG } from '@/lib/ai-config';
  * - requirements: 需求列表（可选，辅助判断）
  */
 
-export interface ProjectTypeInfo {
-  /** 项目类型标识 */
-  type: 'java-fullstack' | 'python-fullstack' | 'node-fullstack' | 'vue-frontend' | 'react-frontend' | 'nextjs' | 'html-static' | 'python-web' | 'other';
-  /** 人类可读的项目类型描述 */
-  label: string;
-  /** 后端技术栈 */
-  backend: {
-    tech: 'spring-boot' | 'django' | 'flask' | 'fastapi' | 'express' | 'none';
-    language: 'java' | 'python' | 'javascript' | 'typescript' | 'none';
-    port: number;
-  };
-  /** 前端技术栈 */
-  frontend: {
-    tech: 'vue' | 'react' | 'nextjs' | 'html' | 'none';
-    framework: 'vue3' | 'vue2' | 'react18' | 'nextjs14' | 'none';
-    buildTool: 'vite' | 'webpack' | 'nextjs' | 'none';
-    port: number;
-  };
-  /** 是否需要数据库 */
-  needsDatabase: boolean;
-  /** 数据库类型 */
-  database: 'mysql' | 'postgresql' | 'mongodb' | 'sqlite' | 'none';
-  /** 是否需要 Redis 等缓存 */
-  needsCache: boolean;
-  /** 项目结构模式 */
-  structureMode: 'monorepo' | 'separated' | 'frontend-only' | 'backend-only' | 'fullstack-single';
-  /** 推荐的包管理器 */
-  packageManager: 'pnpm' | 'npm' | 'maven' | 'pip';
-  /** 关键依赖列表（用于生成 package.json / pom.xml / requirements.txt） */
-  keyDependencies: string[];
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const { readme, title, requirements } = await request.json() as {
-      readme?: string;
-      title?: string;
-      requirements?: Array<{ name: string; description: string }>;
-    };
-
-    if (!readme || typeof readme !== 'string' || readme.trim().length === 0) {
-      return NextResponse.json({ error: '缺少README文档内容' }, { status: 400 });
-    }
+    const data = await request.json();
+    const { readme, title, requirements } = validateRequest(DetectProjectTypeSchema, data);
 
     const client = createOpenAIClient();
 
@@ -138,22 +102,10 @@ ${readmeTruncated}
 
     const result = stream.choices[0]?.message?.content || '';
 
-    // 解析 JSON
-    let cleaned = result.trim();
-    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-    cleaned = cleaned.trim();
-
-    let projectType: ProjectTypeInfo;
-    try {
-      projectType = JSON.parse(cleaned);
-    } catch {
-      // 尝试提取 JSON
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) {
-        projectType = JSON.parse(match[0]);
-      } else {
-        throw new Error('无法解析项目类型');
-      }
+    // 解析 JSON（复用统一清理工具）
+    const projectType = parseJsonObject<ProjectTypeInfo>(result);
+    if (!projectType) {
+      throw new Error('无法解析项目类型');
     }
 
     // 验证和补全默认值
@@ -165,6 +117,6 @@ ${readmeTruncated}
     return NextResponse.json(projectType);
   } catch (error) {
     console.error('Detect project type error:', error);
-    return NextResponse.json({ error: '项目类型识别失败，请重试' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : '项目类型识别失败，请重试' }, { status: 500 });
   }
 }
