@@ -183,12 +183,12 @@ export const AI_CONFIG = {
 
 ```typescript
 export const SCENARIO_MODELS = {
-  requirements: 'qwen3.7-flash',    // 需求生成
-  analyzeRequirements: 'qwen3.7-flash',
-  readme: 'qwen3.7-plus',         // README 生成
-  designDoc: 'qwen3.7-max',        // 设计说明书
-  codeStructure: 'qwen3.7-flash',  // 代码结构
-  code: 'kimi-k2.7-code',         // 代码生成
+  requirements: ' ',    // 需求生成
+  analyzeRequirements: ' ',     //分析需求
+  readme: ' ',         // README 生成
+  designDoc: ' ',        // 设计说明书
+  codeStructure: ' ',  // 代码结构
+  code: ' ',         // 代码生成
 } as const;
 ```
 
