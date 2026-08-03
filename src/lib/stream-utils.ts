@@ -64,7 +64,8 @@ export async function* streamCompletion(
     messages,
     projectType,
     maxRetries = 3,
-    timeout = 30000,
+    // README/设计文档/代码等长文生成实测需 60s+（batch2 实测 58s），30s 会误杀正常请求
+    timeout = 180000,
     totalTokens,
     onProgress,
     checkpointInterval = 10000

@@ -50,6 +50,23 @@
 
 **验证**：tsx 实测 `/api/generate-requirements` 流式调用，289→235 chunk，JSON 完整解析出 9 条需求；截断恢复单测通过（未闭合条目正确跳过）。
 
+### 2026-08-03 修复"README 文件为空"（3 个叠加根因）
+
+**症状**：步骤 3 生成的 README 内容缺失/空白，下载包内 README.md 为空。
+
+**根因**：
+1. **batch 参数未生效**：前端 `/api/generate-readme?batch=1/2/3` 将批次号放在 URL query，后端只从 JSON body 解构 → 三次请求全部生成 batch1，README 缺 2/3 章节
+2. **30s 流式超时误杀长文**：`streamCompletion` 默认 timeout=30000ms，README 单批实测需 58s+，batch2/3 被 abort → 0 字节响应 → 前端拼出空白内容
+3. **环境陷阱**：残留 dev 实例（`.next/dev/lock` 冲突）会返回空流，极易误判
+
+**修复**：
+1. `generate-readme/route.ts`：后端读取 URL query 的 batch 参数（`new URL(request.url).searchParams.get('batch')`）
+2. `stream-utils.ts`：timeout 默认 30000 → 180000ms（长文生成实测需 60s+）
+
+**验证**：实测 batch1/2/3 各自返回对应章节内容；tsc 0 错误。
+
+**排查经验**：dev 服务器残留实例会导致 `.next/dev/lock` 冲突、返回空流——排查流式问题时先清理全部 node 进程再启动（`taskkill //F //PID <pid>` + 删 `.next/dev/lock`）。
+
 ## 三、已知缺陷
 
 （重构期间发现的回归与遗留问题记于此，含修复状态）

@@ -6,7 +6,9 @@ import { GenerateReadmeSchema, validateRequest } from '@/lib/api-validation';
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { title, requirements, batch = 1 } = validateRequest(GenerateReadmeSchema, data);
+    // 前端以 URL query 传批次（?batch=1/2/3），body 中无该字段，需从 query 读取
+    const urlBatch = Number(new URL(request.url).searchParams.get('batch'));
+    const { title, requirements, batch = urlBatch || 1 } = validateRequest(GenerateReadmeSchema, data);
 
     const client = createOpenAIClient();
 
