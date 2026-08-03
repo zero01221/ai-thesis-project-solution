@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { createOpenAIClient } from '@/lib/ai-client';
+import { createStreamResponse } from '@/lib/stream-utils';
 import { GenerateReadmeSchema, validateRequest } from '@/lib/api-validation';
 
 export async function POST(request: NextRequest) {
@@ -130,7 +131,7 @@ ${requirementsText}
       },
     ];
 
-    return createStreamResponse(client, messages, 'readme');
+    return createStreamResponse(client, { scenario: 'readme', messages });
   } catch (error) {
     console.error('Generate readme error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'README生成失败，请重试' }, { status: 500 });

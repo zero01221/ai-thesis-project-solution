@@ -1,9 +1,179 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 
-import type { ProjectAnalysis } from '@/types/project';
-import { analyzeProject, typeInfoToAnalysis } from '@/lib/project-type-registry';
+import type { ProjectAnalysis, ProjectTypeInfo } from '@/types/project';
 import { DownloadPackageSchema, validateRequest } from '@/lib/api-validation';
+
+// ============================================================
+// 基于文件启发式分析项目结构（无 projectType 时的回退方案）
+// ============================================================
+
+function analyzeProject(files: Array<{ path: string; content: string }>): ProjectAnalysis {
+  const paths = files.map((f) => f.path.toLowerCase());
+  const contents = files.map((f) => f.content.toLowerCase());
+
+  // Detect frontend directory
+  let hasFrontend = false;
+  let frontendDir = '';
+  let frontendTech = '';
+
+  // Check for frontend/ directory patterns
+  const frontendPatterns = ['frontend/', 'front-end/', 'web/', 'client/'];
+  for (const pattern of frontendPatterns) {
+    if (paths.some((p) => p.startsWith(pattern))) {
+      hasFrontend = true;
+      frontendDir = pattern.replace(/\/$/, '');
+      break;
+    }
+  }
+
+  // If no standard frontend directory, check if there's a Vue/React project inside any subdirectory
+  if (!hasFrontend) {
+    for (const p of paths) {
+      if (p.includes('/package.json') && !p.startsWith('backend/')) {
+        const dir = p.split('/').slice(0, -1).join('/');
+        if (dir && dir !== '.') {
+          // Check if this directory has Vue/React indicators
+          const dirFiles = paths.filter((fp) => fp.startsWith(dir + '/'));
+          if (dirFiles.some((fp) => fp.includes('vite.config') || fp.includes('vue') || fp.includes('react'))) {
+            hasFrontend = true;
+            frontendDir = dir;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Detect frontend technology
+  if (hasFrontend) {
+    const frontendPaths = paths.filter((p) => p.startsWith(frontendDir.toLowerCase() + '/'));
+    const frontendContents = files
+      .filter((f) => f.path.toLowerCase().startsWith(frontendDir.toLowerCase() + '/'))
+      .map((f) => f.content.toLowerCase());
+
+    if (frontendPaths.some((p) => p.includes('vite.config') && frontendContents.some((c) => c.includes('vue')))) {
+      frontendTech = 'vue';
+    } else if (frontendPaths.some((p) => p.includes('next.config'))) {
+      frontendTech = 'nextjs';
+    } else if (frontendContents.some((c) => c.includes('react'))) {
+      frontendTech = 'react';
+    } else {
+      frontendTech = 'node';
+    }
+  }
+
+  // Detect backend directory
+  let hasBackend = false;
+  let backendDir = '';
+  let backendTech = '';
+
+  const backendPatterns = ['backend/', 'back-end/', 'server/', 'api/'];
+  for (const pattern of backendPatterns) {
+    if (paths.some((p) => p.startsWith(pattern))) {
+      hasBackend = true;
+      backendDir = pattern.replace(/\/$/, '');
+      break;
+    }
+  }
+
+  // Detect backend technology
+  if (hasBackend) {
+    const backendPaths = paths.filter((p) => p.startsWith(backendDir.toLowerCase() + '/'));
+    const backendContents = files
+      .filter((f) => f.path.toLowerCase().startsWith(backendDir.toLowerCase() + '/'))
+      .map((f) => f.content.toLowerCase());
+
+    if (backendPaths.some((p) => p.includes('pom.xml') || p.includes('build.gradle'))) {
+      backendTech = 'java';
+    } else if (backendContents.some((c) => c.includes('spring-boot') || c.includes('@springbootapplication'))) {
+      backendTech = 'java';
+    } else if (backendPaths.some((p) => p.includes('requirements.txt') || p.includes('manage.py'))) {
+      backendTech = 'python';
+    } else if (backendContents.some((c) => c.includes('flask') || c.includes('django'))) {
+      backendTech = 'python';
+    } else {
+      backendTech = 'node';
+    }
+  }
+
+  // If no backend directory, detect from root
+  if (!hasBackend) {
+    if (paths.some((p) => p.includes('pom.xml') || p.includes('build.gradle'))) {
+      backendTech = 'java';
+    } else if (contents.some((c) => c.includes('spring-boot') || c.includes('@springbootapplication'))) {
+      backendTech = 'java';
+    } else if (paths.some((p) => p.includes('requirements.txt') || p.includes('manage.py'))) {
+      backendTech = 'python';
+    }
+  }
+
+  // Detect infrastructure directory
+  let hasInfrastructure = false;
+  let infraDir = '';
+  const infraPatterns = ['infrastructure/', 'docker/', 'deploy/', 'docker-compose'];
+  for (const pattern of infraPatterns) {
+    if (paths.some((p) => p.toLowerCase().startsWith(pattern.toLowerCase()))) {
+      hasInfrastructure = true;
+      infraDir = pattern.replace(/\/$/, '');
+      break;
+    }
+  }
+
+  // Infer services (database / cache) from dependency manifests
+  const infraFiles = files
+    .filter((f) => /docker-compose|init\.sql|schema\.sql|requirements\.txt|pom\.xml/i.test(f.path))
+    .map((f) => f.content.toLowerCase())
+    .join('\n');
+  const services: string[] = [];
+  if (/mysql|pymysql|mysql-connector/i.test(infraFiles)) services.push('mysql');
+  if (/postgres|postgresql|psycopg/i.test(infraFiles)) services.push('postgresql');
+  if (/mongodb|pymongo/i.test(infraFiles)) services.push('mongodb');
+  if (/redis/i.test(infraFiles)) services.push('redis');
+
+  // Determine main type
+  let type = 'node';
+  if (hasBackend && hasFrontend) {
+    type = `fullstack-${backendTech}-${frontendTech}`;
+  } else if (hasBackend && backendTech === 'java') {
+    type = 'java';
+  } else if (hasBackend && backendTech === 'python') {
+    type = 'python';
+  } else if (hasFrontend && frontendTech === 'vue') {
+    type = 'vue';
+  } else if (hasFrontend && frontendTech === 'nextjs') {
+    type = 'nextjs';
+  } else if (hasFrontend && frontendTech === 'react') {
+    type = 'react';
+  } else if (paths.some((p) => p.includes('pom.xml'))) {
+    type = 'java';
+  } else if (paths.some((p) => p.includes('requirements.txt'))) {
+    type = 'python';
+  } else if (paths.some((p) => p.includes('next.config'))) {
+    type = 'nextjs';
+  } else if (paths.some((p) => p.endsWith('.html') && !paths.some((p2) => p2.includes('package.json')))) {
+    type = 'html';
+  }
+
+  // Default ports by tech stack
+  const backendPort = backendTech === 'java' ? 8080 : backendTech === 'python' ? 8000 : 3000;
+  const frontendPort = frontendTech === 'nextjs' ? 3000 : 5173;
+
+  return {
+    type,
+    hasFrontend,
+    frontendDir,
+    hasBackend,
+    backendDir,
+    backendTech,
+    frontendTech,
+    hasInfrastructure,
+    infraDir,
+    services,
+    backendPort,
+    frontendPort,
+  };
+}
 
 // Convert ProjectTypeInfo to ProjectAnalysis for compatibility
 function typeInfoToAnalysis(info: ProjectTypeInfo): ProjectAnalysis {
@@ -633,9 +803,12 @@ export async function POST(request: NextRequest) {
       ? title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_').substring(0, 50)
       : 'graduation-project';
 
+    // zod 校验通过后的 projectType 视为完整 ProjectTypeInfo（前端由 detect-project-type 提供）
+    const projectTypeInfo = projectType as ProjectTypeInfo | null;
+
     // Use projectType if provided, otherwise fallback to file analysis
-    const analysis: ProjectAnalysis = projectType
-      ? typeInfoToAnalysis(projectType)
+    const analysis: ProjectAnalysis = projectTypeInfo
+      ? typeInfoToAnalysis(projectTypeInfo)
       : analyzeProject(files);
 
     const zip = new JSZip();
@@ -654,7 +827,7 @@ export async function POST(request: NextRequest) {
     zip.file(`${projectName}/CLAUDE.md`, generateClaudeMd(title || 'Graduation Project', analysis));
 
     // Add .project.json
-    zip.file(`${projectName}/.project.json`, generateProjectJson(title || 'Graduation Project', analysis, projectType || null));
+    zip.file(`${projectName}/.project.json`, generateProjectJson(title || 'Graduation Project', analysis, projectTypeInfo));
 
     // Add 设计说明书
     if (designDoc) {

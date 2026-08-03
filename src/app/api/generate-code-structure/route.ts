@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { createOpenAIClient } from '@/lib/ai-client';
+import { createStreamResponse } from '@/lib/stream-utils';
 import { GenerateCodeStructureSchema, validateRequest } from '@/lib/api-validation';
 
 /**
@@ -9,13 +10,12 @@ import { GenerateCodeStructureSchema, validateRequest } from '@/lib/api-validati
  * 结合项目类型信息，确保文件清单完整且符合技术栈规范
  */
 
-import type { ProjectTypeInput } from '@/types/project';
-import { getTypeConstraints } from '@/lib/project-type-registry';
+import type { ProjectTypeInfo } from '@/types/project';
 
 /**
  * 根据项目类型生成必须包含的文件清单约束
  */
-function getTypeConstraints(projectType: ProjectTypeInput | null): string {
+function getTypeConstraints(projectType: ProjectTypeInfo | null): string {
   if (!projectType) {
     return '';
   }
@@ -135,11 +135,14 @@ export async function POST(request: NextRequest) {
     // 截取README到合理长度
     const readmeTruncated = readme.length > 8000 ? readme.slice(0, 8000) + '\n...(文档已截断)' : readme;
 
-    // 获取项目类型约束
-    const typeConstraints = getTypeConstraints(projectType || null);
+    // zod 校验通过后的 projectType 视为完整 ProjectTypeInfo（前端由 detect-project-type 提供）
+    const projectTypeInfo = projectType as ProjectTypeInfo | null;
 
-    const projectTypeDesc = projectType
-      ? `\n## 已识别的项目类型\n${projectType.label}（${projectType.type}）\n技术栈：后端=${projectType.backend.tech}/${projectType.backend.language}，前端=${projectType.frontend.tech}/${projectType.frontend.framework}\n结构模式：${projectType.structureMode}\n包管理器：${projectType.packageManager}\n数据库：${projectType.database}\n`
+    // 获取项目类型约束
+    const typeConstraints = getTypeConstraints(projectTypeInfo);
+
+    const projectTypeDesc = projectTypeInfo
+      ? `\n## 已识别的项目类型\n${projectTypeInfo.label}（${projectTypeInfo.type}）\n技术栈：后端=${projectTypeInfo.backend.tech}/${projectTypeInfo.backend.language}，前端=${projectTypeInfo.frontend.tech}/${projectTypeInfo.frontend.framework}\n结构模式：${projectTypeInfo.structureMode}\n包管理器：${projectTypeInfo.packageManager}\n数据库：${projectTypeInfo.database}\n`
       : '';
 
     const messages = [
@@ -179,7 +182,7 @@ ${readmeTruncated}
       },
     ];
 
-    return createStreamResponse(client, messages, 'codeStructure');
+    return createStreamResponse(client, { scenario: 'codeStructure', messages });
   } catch (error) {
     console.error('Generate code structure error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : '文件结构生成失败，请重试' }, { status: 500 });

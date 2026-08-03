@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { createOpenAIClient } from '@/lib/ai-client';
+import { createStreamResponse } from '@/lib/stream-utils';
 import { GenerateCodeSchema, validateRequest } from '@/lib/api-validation';
-import type { FileStructure, ProjectTypeInput } from '@/types/project';
+import { getCodeConstraints } from '@/lib/project-type-registry';
+import type { FileStructure, ProjectTypeInfo } from '@/types/project';
 
 ''
 
 export async function POST(request: NextRequest) {
   try {
     const { files, readme, title, batchIndex, totalBatches, projectType } = validateRequest(GenerateCodeSchema, await request.json());
+
+    // zod 校验通过后的 projectType 视为完整 ProjectTypeInfo（前端由 detect-project-type 提供）
+    const projectTypeInfo = projectType as ProjectTypeInfo | null;
 
     if (!files || !Array.isArray(files) || files.length === 0) {
       return NextResponse.json({ error: '缺少文件清单' }, { status: 400 });
@@ -26,11 +31,11 @@ export async function POST(request: NextRequest) {
     const fileList = files.map((f, i) => `${i + 1}. ${f.path} - ${f.description}`).join('\n');
 
     // 获取代码约束
-    const codeConstraints = getCodeConstraints(files, projectType || null);
+    const codeConstraints = getCodeConstraints(files, projectTypeInfo);
 
     // 项目类型描述
-    const projectTypeDesc = projectType
-      ? `\n## 项目类型信息\n类型：${projectType.label}\n后端：${projectType.backend.tech} (${projectType.backend.language})，端口 ${projectType.backend.port}\n前端：${projectType.frontend.tech} (${projectType.frontend.framework})，端口 ${projectType.frontend.port}\n数据库：${projectType.database}\n结构：${projectType.structureMode}\n`
+    const projectTypeDesc = projectTypeInfo
+      ? `\n## 项目类型信息\n类型：${projectTypeInfo.label}\n后端：${projectTypeInfo.backend.tech} (${projectTypeInfo.backend.language})，端口 ${projectTypeInfo.backend.port}\n前端：${projectTypeInfo.frontend.tech} (${projectTypeInfo.frontend.framework})，端口 ${projectTypeInfo.frontend.port}\n数据库：${projectTypeInfo.database}\n结构：${projectTypeInfo.structureMode}\n`
       : '';
 
     const messages = [
@@ -87,7 +92,7 @@ ${fileList}
       },
     ];
 
-    return createStreamResponse(client, messages, 'code');
+    return createStreamResponse(client, { scenario: 'code', messages });
   } catch (error) {
     console.error('Generate code batch error:', error);
     return NextResponse.json({ error: '代码生成失败，请重试' }, { status: 500 });

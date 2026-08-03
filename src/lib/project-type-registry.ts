@@ -317,7 +317,7 @@ export function getProjectType(type: string): ProjectTypeInfo {
   }
 
   return {
-    type,
+    type: type as ProjectTypeInfo['type'],
     label: constraints.label,
     backend: constraints.constraints.backend,
     frontend: constraints.constraints.frontend,
@@ -325,8 +325,8 @@ export function getProjectType(type: string): ProjectTypeInfo {
     database: constraints.constraints.database,
     needsCache: constraints.constraints.needsCache,
     structureMode: constraints.constraints.structureMode,
-    packageManager: constraints.constraints.packageManager,
-    keyDependencies: constraints.constraints.keyDependencies,
+    packageManager: constraints.constraints.packageManager as ProjectTypeInfo['packageManager'],
+    keyDependencies: [...constraints.constraints.keyDependencies],
   };
 }
 
@@ -335,7 +335,7 @@ export function getProjectType(type: string): ProjectTypeInfo {
  */
 export function getAllProjectTypes(): ProjectTypeInfo[] {
   return Object.entries(PROJECT_TYPE_CONSTRAINTS).map(([type, constraints]) => ({
-    type,
+    type: type as ProjectTypeInfo['type'],
     label: constraints.label,
     backend: constraints.constraints.backend,
     frontend: constraints.constraints.frontend,
@@ -343,8 +343,8 @@ export function getAllProjectTypes(): ProjectTypeInfo[] {
     database: constraints.constraints.database,
     needsCache: constraints.constraints.needsCache,
     structureMode: constraints.constraints.structureMode,
-    packageManager: constraints.constraints.packageManager,
-    keyDependencies: constraints.constraints.keyDependencies,
+    packageManager: constraints.constraints.packageManager as ProjectTypeInfo['packageManager'],
+    keyDependencies: [...constraints.constraints.keyDependencies],
   }));
 }
 

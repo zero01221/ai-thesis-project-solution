@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient } from '@/lib/ai-client';
 import { AI_CONFIG } from '@/lib/ai-config';
-import { cleanAiJson, extractJsonObject } from '@/lib/ai-json';
+import { parseJsonObject } from '@/lib/ai-json';
 import type { ProjectTypeInfo } from '@/types/project';
 import { DetectProjectTypeSchema, validateRequest } from '@/lib/api-validation';
 

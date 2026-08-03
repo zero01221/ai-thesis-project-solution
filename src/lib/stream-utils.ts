@@ -75,11 +75,12 @@ export async function* streamCompletion(
   let lastCheckpoint = Date.now();
   let checkpointId = 0;
   let tokenCount = 0;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   while (retryCount < maxRetries) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      timeoutId = setTimeout(() => controller.abort(), timeout);
 
       // 发送进度信息
       onProgress?.({
@@ -203,7 +204,9 @@ class CheckpointManager {
     // 限制检查点数量
     if (this.checkpoints.size > 10) {
       const oldestKey = this.checkpoints.keys().next().value;
-      this.checkpoints.delete(oldestKey);
+      if (oldestKey !== undefined) {
+        this.checkpoints.delete(oldestKey);
+      }
     }
   }
 

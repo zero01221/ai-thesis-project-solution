@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { createOpenAIClient } from '@/lib/ai-client';
+import { createStreamResponse } from '@/lib/stream-utils';
 import { GenerateRequirementsSchema, validateRequest } from '@/lib/api-validation';
 
 export async function POST(request: NextRequest) {
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    return createStreamResponse(client, messages, 'requirements');
+    return createStreamResponse(client, { scenario: 'requirements', messages });
   } catch (error) {
     console.error('Generate requirements error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : '需求生成失败，请重试' }, { status: 500 });

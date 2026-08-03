@@ -91,7 +91,7 @@ export class ConfigManager {
   /**
    * 验证配置
    */
-  private validate(): boolean {
+  validate(): boolean {
     try {
       // 验证API密钥
       if (!this.config.apiKey || this.config.apiKey.length < 10) {

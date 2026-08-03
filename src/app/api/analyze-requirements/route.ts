@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAIClient, createStreamResponse } from '@/lib/ai-client';
+import { createOpenAIClient } from '@/lib/ai-client';
+import { createStreamResponse } from '@/lib/stream-utils';
 import { AnalyzeRequirementsSchema, validateRequest } from '@/lib/api-validation';
 
 export async function POST(request: NextRequest) {
@@ -43,7 +44,7 @@ ${requirements.trim()}
       },
     ];
 
-    return createStreamResponse(client, messages, 'analyzeRequirements');
+    return createStreamResponse(client, { scenario: 'analyzeRequirements', messages });
   } catch (error) {
     console.error('Analyze requirements error:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : '需求分析失败，请重试' }, { status: 500 });

@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { AI_CONFIG, configManager } from '@/lib/ai-config';
-import { createStreamResponse, createOpenAIClient } from '@/lib/stream-utils';
+import { createStreamResponse } from '@/lib/stream-utils';
 
 /**
  * 请求缓存键类型
@@ -41,7 +41,7 @@ export class AIClientManager {
   /**
    * 生成缓存键
    */
-  private generateCacheKey(scenario: string, messages: string[]): CacheKey {
+  generateCacheKey(scenario: string, messages: Array<{ role: string; content: string }>): CacheKey {
     const messageHash = messages
       .map(msg => `${msg.role}:${msg.content}`)
       .join('|')
@@ -53,7 +53,7 @@ export class AIClientManager {
   /**
    * 检查缓存是否存在且有效
    */
-  private getCacheItem<T>(key: CacheKey): T | null {
+  getCacheItem<T>(key: CacheKey): T | null {
     const item = this.cache.get(key);
 
     if (!item) return null;
@@ -74,7 +74,9 @@ export class AIClientManager {
     // 如果缓存已满，删除最旧的项
     if (this.cache.size >= this.maxCacheSize) {
       const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      if (oldestKey !== undefined) {
+        this.cache.delete(oldestKey);
+      }
     }
 
     this.cache.set(key, {
@@ -111,7 +113,7 @@ export class AIClientManager {
   /**
    * 批量生成缓存键
    */
-  private generateBatchCacheKey(scenario: string, rounds: Array<{ messages: string[] }>): CacheKey {
+  private generateBatchCacheKey(scenario: string, rounds: Array<{ messages: Array<{ role: string; content: string }> }>): CacheKey {
     const roundHashes = rounds.map(round =>
       round.messages
         .map(msg => `${msg.role}:${msg.content}`)
@@ -144,13 +146,13 @@ export function createCachedStreamResponse(
   // 尝试从缓存获取
   const cacheKey = aiClientManager.generateCacheKey(
     options.scenario,
-    options.messages.map(m => JSON.stringify(m))
+    options.messages
   );
 
   const cachedData = aiClientManager.getCacheItem(cacheKey);
   if (cachedData) {
     // 如果有缓存，直接返回静态响应
-    return new Response(cachedData, {
+    return new Response(String(cachedData), {
       headers: {
         'Content-Type': 'application/json',
         'X-Cache': 'HIT',
@@ -222,8 +224,8 @@ export async function aiRequestWithRetry<T>(
 export async function createStreamResponseWithRetry(
   options: Parameters<typeof createStreamResponse>[1]
 ) {
-  return aiRequestWithRetry(
-    () => createStreamResponse(createOpenAIClient(), options),
+  return aiRequestWithRetry<Response>(
+    async () => createStreamResponse(createOpenAIClient(), options),
     {
       maxRetries: 2,
       retryDelay: 500,

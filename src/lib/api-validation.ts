@@ -33,6 +33,7 @@ export const AnalyzeRequirementsSchema = z.object({
  */
 export const GenerateReadmeSchema = z.object({
   title: z.string().min(1, '请输入项目标题').max(200, '标题过长'),
+  batch: z.number().optional(),
   requirements: z.array(
     z.object({
       id: z.number(),
@@ -273,7 +274,7 @@ export function validateRequest<T extends z.ZodTypeAny>(
   try {
     const result = schema.safeParse(data);
     if (!result.success) {
-      const errorMessages = result.error.errors
+      const errorMessages = result.error.issues
         .map(err => `${err.path.join('.')}: ${err.message}`)
         .join(', ');
 
