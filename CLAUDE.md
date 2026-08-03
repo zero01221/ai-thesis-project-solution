@@ -35,6 +35,21 @@
 
 **验证**：`tsc -p tsconfig.json` 0 错误；`npm run build` 成功（Turbopack 18.4s + tsup）
 
+### 2026-08-03 修复"需求输入解析失败"（需求生成流式回归）
+
+**症状**：步骤 1 输入题目点分析 → 报"AI返回的需求格式无法解析，请重试"。
+
+**根因（两个叠加）**：
+1. WP4 流式重构改变了后端语义：`streamCompletion` 每次 yield **累积全文**，而前端 `streamFetch` 仍是旧协议的 `fullText += chunk` 追加拼接 → 文本重复叠加、JSON 损坏
+2. 需求场景 `max_tokens: 4096` 不足以输出 8-12 条详细需求（实测截断在 id 8），JSON 不完整且 `parseRequirements` 无截断恢复
+
+**修复**：
+1. `graduation-wizard.tsx` `streamFetch`：`fullText += chunk` → `fullText = chunk`（匹配后端累积语义）
+2. `ai-config.ts`：requirements / analyzeRequirements 的 max_tokens 4096 → 8192
+3. `graduation-wizard.tsx` `parseRequirements`：新增 Strategy 3 截断恢复（对象级正则提取已完整生成的需求条目）
+
+**验证**：tsx 实测 `/api/generate-requirements` 流式调用，289→235 chunk，JSON 完整解析出 9 条需求；截断恢复单测通过（未闭合条目正确跳过）。
+
 ## 三、已知缺陷
 
 （重构期间发现的回归与遗留问题记于此，含修复状态）

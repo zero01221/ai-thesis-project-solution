@@ -74,8 +74,9 @@ export class ConfigManager {
       model: process.env.AI_DEFAULT_MODEL || 'qwen3.7-plus',
       models: SCENARIO_MODELS,
       params: {
-        requirements: { temperature: 0.7, max_tokens: 4096 },
-        analyzeRequirements: { temperature: 0.7, max_tokens: 4096 },
+        // 需求列表为 8-12 条详细 JSON，4096 tokens 不够导致输出截断、JSON 不完整
+        requirements: { temperature: 0.7, max_tokens: 8192 },
+        analyzeRequirements: { temperature: 0.7, max_tokens: 8192 },
         readme: { temperature: 0.5, max_tokens: 8192 },
         designDoc: { temperature: 0.5, max_tokens: 16384 },
         codeStructure: { temperature: 0.3, max_tokens: 4096 },

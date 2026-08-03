@@ -84,7 +84,8 @@ async function streamFetch(
       const { done, value } = await reader.read();
       if (done) break;
       const chunk = decoder.decode(value, { stream: true });
-      fullText += chunk;
+      // 后端 streamCompletion 每次输出累积全文（非增量），这里整段替换而非追加
+      fullText = chunk;
       onChunk(fullText);
     }
   } catch {
@@ -139,10 +140,29 @@ function parseRequirements(text: string): Requirement[] {
           }));
         }
       } catch {
-        // Fall through
+        // Fall through to truncation recovery
       }
     }
   }
+
+  // Strategy 3: Truncation recovery - extract complete objects from incomplete JSON
+  // (AI 输出可能在 max_tokens 处截断，JSON 未闭合，逐个提取已完整生成的需求)
+  const objRegex =
+    /\{\s*"id"\s*:\s*(\d+)\s*,\s*"name"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"description"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g;
+  const results: Requirement[] = [];
+  let match;
+  while ((match = objRegex.exec(cleaned)) !== null) {
+    results.push({
+      id: Number(match[1]),
+      name: match[2].replace(/\\"/g, '"').replace(/\\\\/g, '\\'),
+      description: match[3]
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t'),
+    });
+  }
+  if (results.length > 0) return results;
 
   return [];
 }
