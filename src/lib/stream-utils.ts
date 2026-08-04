@@ -165,6 +165,8 @@ export async function* streamCompletion(
       // 检查是否是超时或连接中断
       if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('timeout'))) {
         retryCount++;
+        // 重置累积内容，避免重试后新旧内容拼接错乱（重试 = 从头生成当前流）
+        accumulatedContent = '';
         continue;
       }
 

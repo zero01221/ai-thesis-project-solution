@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOpenAIClient } from '@/lib/ai-client';
 import { AI_CONFIG } from '@/lib/ai-config';
+import { streamCompletion, AI_ERROR_MARKER } from '@/lib/stream-utils';
 import { GenerateDesignDocSchema, validateRequest } from '@/lib/api-validation';
 
 /**
@@ -95,6 +96,8 @@ export async function POST(request: NextRequest) {
     const allMessages = BATCHES.map((batch, index) => {
       const batchLabel = batch.label;
       const isFirst = index === 0;
+      // 前几批的章节范围（用于告诉后批次"哪些已完成"，避免 AI 重述完整大纲）
+      const previousLabels = BATCHES.slice(0, index).map(b => b.label).join('、');
 
       const systemContent = `你是一位资深的计算机专业毕业设计指导老师，擅长撰写高质量的毕业设计说明书（论文）。
 
@@ -104,7 +107,8 @@ export async function POST(request: NextRequest) {
 3. 如果某章节字数接近上限，必须立即收尾转入下一节，不要继续展开
 4. 直接输出Markdown格式的文档内容，不要包含任何额外说明或重复标题
 5. 语言学术规范，适当使用表格、列表增强可读性
-6. 技术描述要具体，避免空泛的概述`;
+6. 技术描述要具体，避免空泛的概述
+7. 严禁输出文档目录、章节大纲或章节标题列表，严禁输出本批范围之外的章节标题，直接从本批第一个章节的正文开始撰写`;
 
       const userContent = isFirst
         ? `请撰写以下毕业设计说明书的 ${batchLabel}。
@@ -118,14 +122,17 @@ ${readmeSummary}
 
 【重要提醒】
 - 你当前只需要写 ${batchLabel}，不要写其他章节
+- 不要输出目录或大纲，直接从第1章正文开始撰写
 - 每个章节的字数必须严格控制在指定范围内
 - 如果某章字数接近上限就收尾，确保所有指定章节都能写完
 
 ${batch.chapters}`
-        : `继续撰写以下毕业设计说明书的 ${batchLabel}。
+        : `继续撰写以下毕业设计说明书的 ${batchLabel}（前一批已完成 ${previousLabels}）。
 
 【重要提醒】
 - 你当前只需要写 ${batchLabel}，不要写其他章节
+- 严禁输出目录或大纲，严禁重述 ${previousLabels} 的章节标题
+- 直接从本批第一个章节（如${batch.chapters.match(/###\s*(第\d章[^\n]*)/)?.[1] || batch.chapters.split('\n')[0]}）的正文开始撰写
 - 每个章节的字数必须严格控制在指定范围内
 - 如果某章字数接近上限就收尾，确保所有指定章节都能写完
 
@@ -135,42 +142,61 @@ ${batch.chapters}`;
     });
 
     // 创建一个合并流，依次生成3批内容
+    // 注意：输出必须使用"总累积"语义（前端 streamFetch 为整段替换），
+    // 每块 enqueue 都包含全部已生成内容，否则 UI 只会显示最后一行。
     const readableStream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
+        let totalText = '';
 
         for (let i = 0; i < allMessages.length; i++) {
           const { system: systemContent, user: userContent } = allMessages[i];
 
+          // 批次之间插入分隔标记（前端可用于显示进度）
+          if (i > 0) {
+            totalText += '\n\n---\n\n';
+            controller.enqueue(encoder.encode(totalText));
+          }
+
+          // streamCompletion 提供超时、重试与错误哨兵，避免批次挂起无限等待。
+          // 实测单批约 170s，放宽到 300s 避免 AI 波动频繁触发重试
+          const batchStart = totalText.length;
+          let batchText = '';
           try {
-            const stream = await client.chat.completions.create({
-              model: AI_CONFIG.models.designDoc,
+            for await (const chunk of streamCompletion(client, {
+              scenario: 'designDoc',
               messages: [
                 { role: 'system', content: systemContent },
                 { role: 'user', content: userContent },
               ],
-              stream: true,
-              ...AI_CONFIG.params.designDoc,
-            });
-
-            // 批次之间插入分隔标记（前端可用于显示进度）
-            if (i > 0) {
-              controller.enqueue(encoder.encode('\n\n---\n\n'));
-            }
-
-            for await (const chunk of stream) {
-              const content = chunk.choices[0]?.delta?.content;
-              if (content) {
-                controller.enqueue(encoder.encode(content));
+              timeout: 300000,
+            })) {
+              if (chunk.error) {
+                controller.enqueue(encoder.encode(`\n\n${AI_ERROR_MARKER} ${chunk.error}`));
+                controller.close();
+                return;
               }
+              if (chunk.content) {
+                if (chunk.content.length < batchText.length) {
+                  // streamCompletion 超时重试后 content 从空重新累积：
+                  // 回退本批已输出的内容，重新开始，避免新旧内容拼接重复
+                  totalText = totalText.slice(0, batchStart);
+                  totalText += chunk.content;
+                } else {
+                  // chunk.content 为当前批内累积文本，取其增量合并到总文本
+                  totalText += chunk.content.slice(batchText.length);
+                }
+                batchText = chunk.content;
+                controller.enqueue(encoder.encode(totalText));
+              }
+              if (chunk.done) break;
             }
           } catch (error) {
-            if (error instanceof Error && error.message.includes('ERR_INVALID_STATE')) {
-              try { controller.close(); } catch { /* already closed */ }
-              return;
-            }
             console.error(`Design doc batch ${i + 1} error:`, error);
-            try { controller.error(error); } catch { /* already closed */ }
+            controller.enqueue(
+              encoder.encode(`\n\n${AI_ERROR_MARKER} ${error instanceof Error ? error.message : '生成失败'}`)
+            );
+            controller.close();
             return;
           }
         }
