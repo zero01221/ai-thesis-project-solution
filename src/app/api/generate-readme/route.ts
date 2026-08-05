@@ -32,7 +32,7 @@ ${requirementsText}
 简要介绍项目背景、目标、核心价值（200字左右）
 
 # 2. 技术栈
-列出前后端技术栈及版本号，格式简洁：
+列出前后端技术栈及版本号，格式简洁，使用最普适的技术栈版本，检查技术栈之间有无版本冲突：
 - 前端：Vue 3.x + Vite 5.x + TypeScript + Element Plus
 - 后端：Spring Boot 3.x + MyBatis-Plus
 - 数据库：MySQL 8.0
